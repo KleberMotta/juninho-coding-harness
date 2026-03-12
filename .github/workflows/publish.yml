@@ -41,6 +41,8 @@ jobs:
         with:
           node-version: "24.x"  # npm >=11.5.1 exigido pelo Trusted Publisher
           cache: "npm"
+          registry-url: "https://registry.npmjs.org"
+          scope: "@kleber.mottajr"
 
       # ── Manual dispatch: calcula nova versão, faz commit e cria tag ──────────
       - name: Bump version and create tag
@@ -109,6 +111,18 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify npm publish config
+        run: |
+          echo "Node: $(node -v)"
+          echo "npm: $(npm -v)"
+          echo "Registry: $(npm config get registry)"
+          echo "Repo: $(node -p \"require('./package.json').repository.url\")"
+          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "✓ NPM_TOKEN fallback configured"
+          else
+            echo "ℹ No NPM_TOKEN fallback configured; publish will rely on npm Trusted Publisher OIDC"
+          fi
+
       - name: Smoke test
         run: |
           mkdir -p /tmp/smoke
@@ -119,12 +133,22 @@ jobs:
       - name: Publish to npm
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
+          NPM_TOKEN_VALUE="${{ secrets.NPM_TOKEN }}"
           if   [[ "$VERSION" == *"-alpha"* ]]; then TAG="alpha"
           elif [[ "$VERSION" == *"-beta"* ]];  then TAG="beta"
           elif [[ "$VERSION" == *"-rc"* ]];    then TAG="rc"
           else TAG="latest"
           fi
-          npm publish --provenance --access public --tag "$TAG"
+
+          if [ -n "$NPM_TOKEN_VALUE" ]; then
+            export NODE_AUTH_TOKEN="$NPM_TOKEN_VALUE"
+            echo "Using NPM_TOKEN fallback for publish"
+          else
+            unset NODE_AUTH_TOKEN
+            echo "Using npm Trusted Publisher OIDC for publish"
+          fi
+
+          npm publish --provenance --access public --tag "$TAG" --registry https://registry.npmjs.org/
           echo "✓ Publicado @kleber.mottajr/juninho@$VERSION com tag: $TAG"
 
       - name: Create GitHub Release

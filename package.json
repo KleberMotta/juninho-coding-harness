@@ -6,6 +6,10 @@
     "juninho": "dist/cli.js"
   },
   "main": "dist/cli.js",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -23,12 +27,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/KleberMotta/juninho"
+    "url": "git+https://github.com/KleberMotta/juninho-coding-harness.git"
   },
   "bugs": {
-    "url": "https://github.com/KleberMotta/juninho/issues"
+    "url": "https://github.com/KleberMotta/juninho-coding-harness/issues"
   },
-  "homepage": "https://github.com/KleberMotta/juninho#readme",
+  "homepage": "https://github.com/KleberMotta/juninho-coding-harness#readme",
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {
