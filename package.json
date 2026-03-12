@@ -23,12 +23,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/KleberMotta/juninho"
+    "url": "https://github.com/KleberMotta/juninho-coding-harness"
   },
   "bugs": {
-    "url": "https://github.com/KleberMotta/juninho/issues"
+    "url": "https://github.com/KleberMotta/juninho-coding-harness/issues"
   },
-  "homepage": "https://github.com/KleberMotta/juninho#readme",
+  "homepage": "https://github.com/KleberMotta/juninho-coding-harness#readme",
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {
