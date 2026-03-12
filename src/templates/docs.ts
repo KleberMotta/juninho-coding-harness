@@ -12,6 +12,11 @@ export function writeDocs(projectDir: string): void {
   writeFileSync(path.join(projectDir, "AGENTS.md"), AGENTS_MD)
   writeFileSync(path.join(projectDir, "docs", "domain", "INDEX.md"), DOMAIN_INDEX)
   writeFileSync(path.join(projectDir, "docs", "principles", "manifest"), MANIFEST)
+  writeFileSync(path.join(projectDir, "docs", "principles", "auth-patterns.md"), AUTH_PATTERNS)
+  writeFileSync(path.join(projectDir, "docs", "principles", "error-handling.md"), ERROR_HANDLING)
+  writeFileSync(path.join(projectDir, "docs", "principles", "api-patterns.md"), API_PATTERNS)
+  writeFileSync(path.join(projectDir, "docs", "principles", "data-patterns.md"), DATA_PATTERNS)
+  writeFileSync(path.join(projectDir, "docs", "principles", "test-patterns.md"), TEST_PATTERNS)
 }
 
 export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): void {
@@ -57,6 +62,7 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           bash: "deny",
           write: "deny",
           edit: "deny",
+          question: "deny",
         },
       },
       "j.spec-writer": {
@@ -66,6 +72,7 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           write: "allow",  // restricted to docs/specs/ in prompt
           edit: "deny",
           task: "allow",   // Phase 0: spawns explore for pre-research
+          question: "allow",
         },
       },
       "j.implementer": {
@@ -75,6 +82,7 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           write: "allow",
           edit: "allow",
           task: "allow",   // spawns validator subagent
+          question: "deny",
         },
       },
       "j.validator": {
@@ -84,6 +92,7 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           write: "allow",  // for FIX-tier direct fixes
           edit: "allow",
           task: "deny",
+          question: "deny",
         },
       },
       "j.reviewer": {
@@ -93,6 +102,7 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           write: "deny",
           edit: "deny",
           task: "deny",
+          question: "deny",
         },
       },
       "j.unify": {
@@ -102,6 +112,7 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           write: "allow",
           edit: "allow",
           task: "allow",
+          question: "deny",
         },
       },
       "j.explore": {
@@ -111,6 +122,7 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           write: "deny",
           edit: "deny",
           task: "deny",
+          question: "deny",
         },
       },
       "j.librarian": {
@@ -120,6 +132,7 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           write: "deny",
           edit: "deny",
           task: "deny",
+          question: "deny",
         },
       },
     },
@@ -174,13 +187,15 @@ This project uses the **Agentic Coding Framework** v2.1 — installed by [juninh
 \`\`\`
 /j.spec → docs/specs/{slug}/spec.md (approved)
   → /j.plan → docs/specs/{slug}/plan.md (approved)
-  → /j.implement → @j.validator gates each commit → /j.unify → PR
+  → /j.implement → @j.validator gates task work
+  → /j.check → /j.unify (if enabled by workflow-config)
 \`\`\`
 
 **Path B — Plan-driven (lightweight tasks):**
 \`\`\`
 /j.plan → plan.md (approved) → plan-autoload injects on next session
-  → /j.implement → @j.validator gates each commit → /j.unify → PR
+  → /j.implement → @j.validator gates task work
+  → /j.check → /j.unify (if enabled by workflow-config)
 \`\`\`
 
 ## Commands
@@ -189,10 +204,11 @@ This project uses the **Agentic Coding Framework** v2.1 — installed by [juninh
 |---------|---------|
 | \`/j.spec <feature>\` | 5-phase interview → \`docs/specs/{slug}/spec.md\` |
 | \`/j.plan <goal>\` | 3-phase pipeline (Metis→Prometheus→Momus) → \`plan.md\` approved |
-| \`/j.implement\` | Execute active plan wave by wave with validation |
-| \`/j.check\` | Run typecheck + lint + tests (same as pre-commit hook) |
-| \`/j.lint\` | Run linter only |
-| \`/j.test\` | Run test suite only |
+| \`/j.implement\` | Execute active plan until code + task-level tests are green |
+| \`/j.check\` | Run repo-wide verification after implementation exits |
+| \`/j.lint\` | Run structure lint used by the pre-commit path |
+| \`/j.test\` | Run change-scoped tests used by the pre-commit path |
+| \`/j.sync-docs\` | Refresh AGENTS, domain docs, and principle docs from code |
 | \`/j.pr-review\` | Advisory review of current branch diff |
 | \`/j.status\` | Show \`execution-state.md\` summary |
 | \`/j.unify\` | Reconcile, update docs, merge worktrees, create PR |
@@ -218,7 +234,8 @@ Writes to \`docs/specs/{feature-slug}/spec.md\`.
 
 ### @j.implementer
 READ→ACT→COMMIT→VALIDATE loop. Wave-based with git worktrees for parallel tasks.
-Pre-commit hook gates every commit. Hashline-aware editing.
+Pre-commit stays fast: structure lint + related tests. Hashline-aware editing.
+Repo-wide checks happen after implementer exits.
 
 ### @j.validator
 Reads spec BEFORE code. BLOCK / FIX / NOTE / APPROVED.
@@ -228,7 +245,8 @@ Can fix FIX-tier issues directly. Writes audit trail to \`validator-work.md\`.
 Post-PR advisory review. Read-only, never blocks. Use via \`/j.pr-review\`.
 
 ### @j.unify
-Closes the loop: reconcile, update domain docs, merge worktrees, \`gh pr create\`.
+Closes the loop according to \`.opencode/state/workflow-config.md\`.
+Can update docs, merge worktrees, and create PRs when those steps are enabled.
 
 ### @j.explore
 Fast read-only codebase research. Spawned by planner Phase 1.
@@ -243,8 +261,8 @@ Fetches official API docs via Context7 MCP.
 | Tier | Mechanism | When |
 |------|-----------|------|
 | 1 | Hierarchical \`AGENTS.md\` + \`j.directory-agents-injector\` | Always — per directory when files are read |
-| 2 | \`j.carl-inject\` — keywords → principles + domain docs | Every \`UserPromptSubmit\` |
-| 3 | \`j.skill-inject\` — file pattern → SKILL.md | \`PreToolUse\` on Write/Edit |
+| 2 | \`j.carl-inject\` — content-aware principles + domain docs | Read time + compaction survival |
+| 3 | \`j.skill-inject\` — file pattern → SKILL.md | Read/Write around matching files |
 | 4 | \`<skills>\` declaration in \`plan.md\` task | Explicit per-task requirement |
 | 5 | State files in \`.opencode/state/\` | Runtime, inter-session |
 
@@ -255,14 +273,15 @@ Fetches official API docs via Context7 MCP.
 | \`j.directory-agents-injector\` | Read | Inject directory-scoped AGENTS.md files (Tier 1) |
 | \`j.env-protection\` | Any tool | Block sensitive file reads/writes |
 | \`j.auto-format\` | Write/Edit | Auto-format after file changes |
-| \`j.plan-autoload\` | session.idle | Inject active plan into context |
-| \`j.carl-inject\` | UserPromptSubmit | Inject principles + domain docs by keyword |
-| \`j.skill-inject\` | PreToolUse Write/Edit | Inject skill by file pattern |
-| \`j.intent-gate\` | UserPromptSubmit | Classify intent before action |
-| \`j.todo-enforcer\` | session.idle | Re-inject incomplete tasks |
+| \`j.plan-autoload\` | Read + compaction | Inject active plan into context |
+| \`j.carl-inject\` | Read + compaction | Inject principles + domain docs from file/task context |
+| \`j.skill-inject\` | Read/Write | Inject skill by file pattern |
+| \`j.intent-gate\` | Write/Edit | Warn when edits drift outside the plan |
+| \`j.todo-enforcer\` | Write/Edit + compaction | Re-inject incomplete tasks |
 | \`j.comment-checker\` | Write/Edit | Flag obvious/redundant comments |
 | \`j.hashline-read\` | Read | Tag lines with content hashes |
 | \`j.hashline-edit\` | Edit | Validate hash references before editing |
+| \`j.memory\` | First tool call + compaction | Inject persistent project memory |
 
 ## Custom Tools
 
@@ -284,10 +303,14 @@ Fetches official API docs via Context7 MCP.
 | Skill | Activates on | Notes |
 |-------|-------------|-------|
 | \`j.test-writing\` | \`*.test.ts\`, \`*.spec.ts\` | Optional: uncomment Playwright MCP in frontmatter for E2E |
-| \`j.page-creation\` | \`app/**/page.tsx\` | |
+| \`j.page-creation\` | \`app/**/page.tsx\` | Stack-specific; use only on Next.js App Router repos |
 | \`j.api-route-creation\` | \`app/api/**/*.ts\` | |
-| \`j.server-action-creation\` | \`**/actions.ts\` | |
+| \`j.server-action-creation\` | \`**/actions.ts\` | Stack-specific; use only on Next.js Server Actions repos |
 | \`j.schema-migration\` | \`schema.prisma\` | |
+| \`j.agents-md-writing\` | \`**/AGENTS.md\` | Directory-local agent guidance |
+| \`j.domain-doc-writing\` | \`docs/domain/**/*.md\` | Business behavior and sync markers |
+| \`j.principle-doc-writing\` | \`docs/principles/**\` | Cross-cutting technical rules |
+| \`j.shell-script-writing\` | \`.opencode/scripts/**/*.sh\`, \`scripts/**/*.sh\`, hooks | Fast, safe automation scripts |
 
 ## State Files
 
@@ -297,6 +320,7 @@ Fetches official API docs via Context7 MCP.
 | \`.opencode/state/execution-state.md\` | Per-feature task table — updated by implementer and UNIFY |
 | \`.opencode/state/validator-work.md\` | Validator audit trail — BLOCK/FIX/NOTE per pass |
 | \`.opencode/state/implementer-work.md\` | Implementer decisions and blockers log |
+| \`.opencode/state/workflow-config.md\` | Controls handoff, doc sync, and configurable UNIFY behavior |
 | \`.opencode/state/.plan-ready\` | Transient IPC flag — plan path, consumed by plan-autoload |
 
 ## Conventions
@@ -304,6 +328,7 @@ Fetches official API docs via Context7 MCP.
 - Specs: \`docs/specs/{feature-slug}/spec.md\` + \`CONTEXT.md\` + \`plan.md\`
 - Domain docs: \`docs/domain/{domain}/*.md\` — indexed in \`docs/domain/INDEX.md\`
 - Principles: \`docs/principles/{topic}.md\` — registered in \`docs/principles/manifest\`
+- Sync markers: \`<!-- juninho:sync source=... hash=... -->\` to track doc↔code alignment
 - Worktrees: \`worktrees/{feature}-{task}/\` — created by implementer, removed by UNIFY
 - Hierarchical \`AGENTS.md\`: root + \`src/\` + \`src/{module}/\` — generated by \`/j.init-deep\`
 `
@@ -398,4 +423,68 @@ TEST_FILE=docs/principles/test-patterns.md
 # PAYMENT_STATE=active
 # PAYMENT_RECALL=payment, stripe, checkout, invoice, subscription, billing
 # PAYMENT_FILE=docs/principles/payment-patterns.md
+`
+
+const AUTH_PATTERNS = `# Authentication Patterns
+
+Use the repository's established authentication entrypoints before business logic.
+
+## Rules
+
+- Authenticate early and fail closed
+- Keep token parsing and authorization checks close to the request boundary
+- Do not mix credential handling with domain logic
+
+## Verify
+
+- Protected routes reject missing or invalid credentials
+- Auth context is passed through typed interfaces or request-scoped state
+`
+
+const ERROR_HANDLING = `# Error Handling
+
+Keep error handling explicit, typed when possible, and consistent with user-visible behavior.
+
+## Rules
+
+- Validate inputs before side effects
+- Return stable error shapes for expected failures
+- Log unexpected failures with enough context for debugging
+- Do not leak internal implementation details to external callers
+`
+
+const API_PATTERNS = `# API Patterns
+
+Keep request handling thin and move business decisions into reusable services.
+
+## Rules
+
+- Parse and validate request input at the boundary
+- Normalize success and error responses
+- Keep transport concerns out of domain services
+- Document authentication and failure modes for each endpoint
+`
+
+const DATA_PATTERNS = `# Data Patterns
+
+Prefer safe, explicit data changes with a clear migration and rollback story.
+
+## Rules
+
+- Favor additive changes first when existing data may be present
+- Update dependent types, serializers, and fixtures with schema changes
+- Index fields based on concrete query needs
+- Keep persistence models aligned with the database schema
+`
+
+const TEST_PATTERNS = `# Test Patterns
+
+Tests should prove behavior, not mirror implementation details.
+
+## Rules
+
+- Prefer focused tests near the changed code while implementing
+- Cover happy path, failure path, and important edge cases
+- Mock external boundaries, not the unit under test
+- Run broader suites after task-level implementation is complete
 `

@@ -6,6 +6,14 @@ import crypto from "crypto"
 import os from "os"
 import { fileURLToPath } from "url"
 
+interface OpencodeRunResult {
+  type?: string
+  part?: {
+    type?: string
+    text?: string
+  }
+}
+
 // ─── Test Runner ──────────────────────────────────────────────────────────────
 
 interface TestResult {
@@ -47,6 +55,7 @@ const testDir = path.join(os.tmpdir(), `juninho-validate-${Date.now()}`)
 const agentPath = (n: string) => path.join(testDir, ".opencode", "agents", n + ".md")
 const pluginPath = (n: string) => path.join(testDir, ".opencode", "plugins", n + ".ts")
 const toolPath = (n: string) => path.join(testDir, ".opencode", "tools", n + ".ts")
+const scriptPath = (n: string) => path.join(testDir, ".opencode", "scripts", n)
 const skillPath = (n: string) => path.join(testDir, ".opencode", "skills", n, "SKILL.md")
 const cmdPath = (n: string) => path.join(testDir, ".opencode", "commands", n + ".md")
 const statePath = (n: string) => path.join(testDir, ".opencode", "state", n)
@@ -70,17 +79,45 @@ const PLUGINS = [
 ]
 
 const COMMANDS = [
-  "j.plan", "j.spec", "j.implement", "j.init-deep", "j.start-work",
+  "j.plan", "j.spec", "j.implement", "j.sync-docs", "j.init-deep", "j.start-work",
   "j.handoff", "j.ulw-loop", "j.check", "j.lint", "j.test",
   "j.pr-review", "j.status", "j.unify",
 ]
 
 const TOOLS = ["find-pattern", "next-version", "lsp", "ast-grep"]
 
+const SUPPORT_SCRIPTS = [
+  "pre-commit.sh",
+  "lint-structure.sh",
+  "test-related.sh",
+  "check-all.sh",
+]
+
 const SKILLS = [
   "j.test-writing", "j.page-creation", "j.api-route-creation",
   "j.server-action-creation", "j.schema-migration",
+  "j.agents-md-writing", "j.domain-doc-writing",
+  "j.principle-doc-writing", "j.shell-script-writing",
 ]
+
+function extractOpencodeText(jsonLines: string): string {
+  return jsonLines
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line) as OpencodeRunResult
+      } catch {
+        return null
+      }
+    })
+    .filter((entry): entry is OpencodeRunResult => entry !== null)
+    .filter((entry) => entry.type === "text" && typeof entry.part?.text === "string")
+    .map((entry) => entry.part?.text ?? "")
+    .join("\n")
+    .trim()
+}
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 
@@ -185,7 +222,7 @@ test("Installation", "All 12 plugins exist", () => {
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
-test("Installation", "All 13 commands exist", () => {
+test("Installation", "All 14 commands exist", () => {
   const missing = COMMANDS.filter((c) => !existsSync(cmdPath(c)))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
@@ -195,7 +232,12 @@ test("Installation", "All 4 tool files exist", () => {
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
-test("Installation", "All 5 skill dirs exist", () => {
+test("Installation", "All 4 support scripts exist", () => {
+  const missing = SUPPORT_SCRIPTS.filter((s) => !existsSync(scriptPath(s)))
+  return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
+})
+
+test("Installation", "All 9 skill dirs exist", () => {
   const missing = SKILLS.filter((s) => !existsSync(skillPath(s)))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
@@ -208,6 +250,9 @@ test("Installation", "AGENTS.md root exists", () =>
 
 test("Installation", "pre-commit hook exists", () =>
   existsSync(path.join(testDir, ".git", "hooks", "pre-commit")))
+
+test("Installation", "workflow-config.md exists", () =>
+  existsSync(statePath("workflow-config.md")))
 
 test("Installation", ".juninho-installed marker exists", () =>
   existsSync(path.join(testDir, ".opencode", ".juninho-installed")))
@@ -335,6 +380,13 @@ test("Plugin Logic", "carl-inject: compaction survival via experimental.session.
   return content.includes("experimental.session.compacting")
     ? true
     : "experimental.session.compacting hook not found in carl-inject"
+})
+
+test("Plugin Logic", "carl-inject: regex fallback handles short keywords and phrases", () => {
+  const content = readPlugin("j.carl-inject")
+  return content.includes("escapeRegex") && content.includes("new RegExp")
+    ? true
+    : "escapeRegex or regex fallback not found in carl-inject"
 })
 
 // skill-inject (3)
@@ -525,14 +577,21 @@ test("Commands", "implement.md references @j.implementer", () =>
 test("Commands", "unify.md references @j.unify", () =>
   readCmd("j.unify").includes("@j.unify"))
 
+test("Commands", "sync-docs.md references AGENTS.md and sync markers", () => {
+  const content = readCmd("j.sync-docs")
+  return content.includes("AGENTS.md") && content.includes("juninho:sync")
+    ? true
+    : "AGENTS.md or juninho:sync not found in j.sync-docs"
+})
+
 test("Commands", "pr-review.md references @j.reviewer", () =>
   readCmd("j.pr-review").includes("@j.reviewer"))
 
 test("Commands", "check.md references pre-commit", () =>
   readCmd("j.check").includes("pre-commit"))
 
-test("Commands", "lint.md references eslint", () =>
-  readCmd("j.lint").toLowerCase().includes("eslint"))
+test("Commands", "lint.md references lint-structure script", () =>
+  readCmd("j.lint").includes("lint-structure.sh"))
 
 test("Commands", "test.md references jest", () =>
   readCmd("j.test").toLowerCase().includes("jest"))
@@ -602,6 +661,18 @@ test("Docs", "INDEX.md: has Files: format", () =>
 test("Docs", "state: persistent-context.md exists", () =>
   existsSync(statePath("persistent-context.md")))
 
+test("Docs", "principles docs scaffold exists for CARL default manifest", () => {
+  const required = [
+    path.join(testDir, "docs", "principles", "auth-patterns.md"),
+    path.join(testDir, "docs", "principles", "error-handling.md"),
+    path.join(testDir, "docs", "principles", "api-patterns.md"),
+    path.join(testDir, "docs", "principles", "data-patterns.md"),
+    path.join(testDir, "docs", "principles", "test-patterns.md"),
+  ]
+  const missing = required.filter((p) => !existsSync(p))
+  return missing.length === 0 ? true : `Missing principles docs: ${missing.join(", ")}`
+})
+
 // ─── Group 9: Directory Structure (5 tests) ──────────────────────────────────
 
 test("Dirs", "worktrees/ exists", () =>
@@ -615,6 +686,9 @@ test("Dirs", ".opencode/state/ exists", () =>
 
 test("Dirs", ".opencode/skills/j.test-writing/ exists", () =>
   existsSync(path.join(testDir, ".opencode", "skills", "j.test-writing")))
+
+test("Dirs", ".opencode/scripts/ exists", () =>
+  existsSync(path.join(testDir, ".opencode", "scripts")))
 
 test("Dirs", "docs/domain/ exists", () =>
   existsSync(path.join(testDir, "docs", "domain")))
@@ -682,6 +756,69 @@ test("Model Config", "CLI shows help when called without arguments", () => {
   return out.includes("setup") && out.includes("Model Tiers") && out.includes("--force")
     ? true
     : `Expected help output with setup/Model Tiers/--force, got: ${out.slice(0, 200)}`
+})
+
+// ─── Group 11: Workflow/Evals (8 tests) ───────────────────────────────────────
+
+test("Workflow/Evals", "pre-commit hook delegates to support script", () => {
+  const hook = readFileSync(path.join(testDir, ".git", "hooks", "pre-commit"), "utf-8")
+  return hook.includes('.opencode/scripts/pre-commit.sh')
+    ? true
+    : "pre-commit hook does not delegate to .opencode/scripts/pre-commit.sh"
+})
+
+test("Workflow/Evals", "pre-commit support script runs related tests not full suite", () => {
+  const content = readFileSync(scriptPath("pre-commit.sh"), "utf-8")
+  return content.includes("test-related.sh") && !content.includes("check-all.sh")
+    ? true
+    : "pre-commit.sh should call test-related.sh and avoid check-all.sh"
+})
+
+test("Workflow/Evals", "check-all support script exists for post-implement verification", () => {
+  const content = readFileSync(scriptPath("check-all.sh"), "utf-8")
+  return content.includes("check:all") || content.includes("./gradlew test")
+    ? true
+    : "check-all.sh does not expose repo-wide verification behavior"
+})
+
+test("Workflow/Evals", "implementer prompt exits before repo-wide checks", () => {
+  const content = readFileSync(agentPath("j.implementer"), "utf-8")
+  return content.includes("repo-wide check fails") && content.includes("check-all.sh")
+    ? true
+    : "implementer prompt does not describe post-implement repo-wide checks"
+})
+
+test("Workflow/Evals", "unify prompt is configurable via workflow-config", () => {
+  const content = readFileSync(agentPath("j.unify"), "utf-8")
+  return content.includes("workflow-config") && content.includes("enabled closeout steps")
+    ? true
+    : "unify prompt is not tied to workflow-config"
+})
+
+test("Workflow/Evals", "reference PR eval assets exist", () => {
+  const required = [
+    path.join(JUNINHO_ROOT, "evals", "reference-pr-quality.md"),
+    path.join(JUNINHO_ROOT, "evals", "reference-pr-54.prompt.md"),
+    path.join(JUNINHO_ROOT, "evals", "run-reference-pr-eval.sh"),
+  ]
+  const missing = required.filter((p) => !existsSync(p))
+  return missing.length === 0 ? true : `Missing eval assets: ${missing.join(", ")}`
+})
+
+test("Workflow/Evals", "reference PR eval rubric mentions changed files and validation steps", () => {
+  const rubric = readFileSync(path.join(JUNINHO_ROOT, "evals", "reference-pr-quality.md"), "utf-8")
+  return rubric.includes("changed files") && rubric.includes("validation steps")
+    ? true
+    : "reference-pr-quality rubric is missing changed files or validation steps guidance"
+})
+
+test("Workflow/Evals", "opencode CLI smoke test works in json mode", () => {
+  const out = execSync(
+    `opencode run --dir "${testDir}" --format json "Responda apenas OK"`,
+    { encoding: "utf-8" }
+  )
+  const text = extractOpencodeText(out)
+  return text === "OK" ? true : `Expected OK from opencode, got: ${text || "<empty>"}`
 })
 
 // ─── Report Generator ─────────────────────────────────────────────────────────

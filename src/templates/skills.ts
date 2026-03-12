@@ -9,13 +9,17 @@ export function writeSkills(projectDir: string): void {
   writeFileSync(path.join(skillsDir, "j.api-route-creation", "SKILL.md"), API_ROUTE_CREATION)
   writeFileSync(path.join(skillsDir, "j.server-action-creation", "SKILL.md"), SERVER_ACTION_CREATION)
   writeFileSync(path.join(skillsDir, "j.schema-migration", "SKILL.md"), SCHEMA_MIGRATION)
+  writeFileSync(path.join(skillsDir, "j.agents-md-writing", "SKILL.md"), AGENTS_MD_WRITING)
+  writeFileSync(path.join(skillsDir, "j.domain-doc-writing", "SKILL.md"), DOMAIN_DOC_WRITING)
+  writeFileSync(path.join(skillsDir, "j.principle-doc-writing", "SKILL.md"), PRINCIPLE_DOC_WRITING)
+  writeFileSync(path.join(skillsDir, "j.shell-script-writing", "SKILL.md"), SHELL_SCRIPT_WRITING)
 }
 
 // ─── Test Writing ────────────────────────────────────────────────────────────
 
 const TEST_WRITING = `---
 name: j.test-writing
-description: Write unit and integration tests following project conventions
+description: Write focused unit and integration tests following project conventions
 # Optional: uncomment to enable Playwright MCP for E2E tests
 # mcp:
 #   playwright:
@@ -59,6 +63,7 @@ describe("ComponentName / functionName", () => {
 - Happy path: at least 1 test
 - Error cases: test each distinct error path
 - Edge cases: empty inputs, boundary values, null/undefined
+- Prefer tests related to the changed files before running the full suite
 - Do NOT test implementation details — test behavior
 
 ### 4. Mock strategy
@@ -98,6 +103,8 @@ description: Create Next.js App Router pages with correct patterns
 ---
 
 # Skill: Page Creation
+
+This is a stack-specific skill. Only apply it when the project actually uses Next.js App Router patterns.
 
 ## When this skill activates
 Creating or editing \`app/**/page.tsx\` or \`app/**/layout.tsx\` files.
@@ -178,6 +185,8 @@ description: Create Next.js App Router API routes with correct patterns
 ---
 
 # Skill: API Route Creation
+
+This is a stack-specific skill. Only apply it when the project actually uses Next.js App Router routes.
 
 ## When this skill activates
 Creating or editing \`app/api/**/*.ts\` route files.
@@ -274,6 +283,8 @@ description: Create Next.js Server Actions with correct patterns
 ---
 
 # Skill: Server Action Creation
+
+This is a stack-specific skill. Only apply it when the project actually uses Next.js Server Actions.
 
 ## When this skill activates
 Creating or editing files with \`"use server"\` directive, typically \`actions.ts\` or \`**/actions/*.ts\`.
@@ -432,4 +443,150 @@ npm test           # run tests
 - Adding required columns without defaults to non-empty tables
 - Forgetting to run \`prisma generate\` after schema changes
 - Not updating TypeScript types after schema changes
+`
+
+const AGENTS_MD_WRITING = `---
+name: j.agents-md-writing
+description: Write strong AGENTS.md files with local rules, commands, and boundaries
+---
+
+# Skill: AGENTS.md Writing
+
+## When this skill activates
+Creating or editing any \`AGENTS.md\` file.
+
+## Goal
+Write an agent-facing operating manual for the current directory only.
+
+## Required Sections
+- Project or directory purpose
+- Build, lint, and test commands that actually work here
+- File layout and ownership boundaries
+- Local coding conventions and pitfalls
+- Review and verification expectations
+
+## Rules
+- Keep the root \`AGENTS.md\` concise and high-signal
+- Make nested \`AGENTS.md\` files additive, not repetitive
+- Prefer concrete commands over vague guidance
+- Separate business rules from technical principles:
+  - \`AGENTS.md\` = how to work in this area
+  - \`docs/domain/*\` = business behavior
+  - \`docs/principles/*\` = cross-cutting technical patterns
+
+## Good patterns
+- Include exact commands such as \`npm test -- foo\` or \`./gradlew test --tests \"...\"\`
+- Call out invariants, ownership boundaries, and high-blast-radius files
+- Mention generated files, migrations, or release steps when relevant
+
+## Anti-patterns
+- Dumping generic style advice with no repository specifics
+- Repeating the same commands in every nested file
+- Mixing business flows into technical instructions
+- Writing aspirational rules that are not enforced anywhere
+`
+
+const DOMAIN_DOC_WRITING = `---
+name: j.domain-doc-writing
+description: Write business-domain documentation that stays aligned with code
+---
+
+# Skill: Domain Doc Writing
+
+## When this skill activates
+Creating or editing files under \`docs/domain/\`.
+
+## Goal
+Document how the business domain works now, not how the code is implemented internally.
+
+## Required Structure
+- Domain summary
+- Rules and invariants
+- Inputs, outputs, and state transitions when relevant
+- Edge cases and operational limits
+- Source of truth references to the key code files
+
+## Sync marker pattern
+At the top of a generated or refreshed section, prefer a marker like:
+
+\`<!-- juninho:sync source=src/payments/service.ts hash=abc123 -->\`
+
+Use the marker to indicate which code file justified the current documentation.
+
+## Rules
+- Write in present tense
+- Prefer user-visible behavior and business meaning
+- Cite key files that justify each rule
+- Update \`docs/domain/INDEX.md\` when adding or renaming a domain doc
+
+## Anti-patterns
+- Explaining framework internals instead of business behavior
+- Copying raw code into the document
+- Leaving undocumented edge cases discovered during implementation
+`
+
+const PRINCIPLE_DOC_WRITING = `---
+name: j.principle-doc-writing
+description: Write technical principle docs with rationale, rules, and examples
+---
+
+# Skill: Principle Doc Writing
+
+## When this skill activates
+Creating or editing files under \`docs/principles/\`.
+
+## Goal
+Capture cross-cutting engineering guidance that multiple modules should follow.
+
+## Required Structure
+- Problem this principle solves
+- Rule set (do / avoid)
+- Rationale and trade-offs
+- Canonical examples in this repository
+- Related files or tooling that enforce the rule
+
+## Sync marker pattern
+For generated sections, prefer a marker like:
+
+\`<!-- juninho:sync source=src/api/client.ts hash=def456 -->\`
+
+## Rules
+- Keep principles technical, reusable, and stack-aware
+- Reference concrete files or commands when possible
+- Register or update the keyword mapping in \`docs/principles/manifest\`
+- Distinguish principle docs from domain docs and \`AGENTS.md\`
+
+## Anti-patterns
+- Repeating business requirements here
+- Writing slogans with no enforcement or examples
+- Documenting obsolete patterns without marking them deprecated
+`
+
+const SHELL_SCRIPT_WRITING = `---
+name: j.shell-script-writing
+description: Write robust shell automation for project workflows and hooks
+---
+
+# Skill: Shell Script Writing
+
+## When this skill activates
+Creating or editing shell scripts, especially in \`.opencode/scripts/\`, \`scripts/\`, or git hooks.
+
+## Required Steps
+1. Start with \`#!/bin/sh\` unless bash-only features are required
+2. Use \`set -e\` and quote every variable expansion that can contain spaces
+3. Resolve and \`cd\` to the project root before running project commands
+4. Prefer delegating to project scripts (\`npm run ...\`, \`make ...\`, \`./gradlew ...\`) over embedding large command logic
+5. Print short, actionable failure messages
+
+## Preferred patterns
+- Detect staged files once and reuse them
+- Support project-specific overrides before framework defaults
+- Keep hook scripts fast; full-suite checks belong outside the pre-commit path
+
+## Anti-patterns
+- Hardcoding one stack when multiple fallback commands are possible
+- Running the full test suite inside pre-commit by default
+- Using unquoted file lists or unsafe globbing
+- Mixing environment bootstrapping with small hook utilities
 `

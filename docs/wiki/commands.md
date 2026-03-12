@@ -75,8 +75,30 @@ Executa o plano ativo (ou spec especificada) wave por wave.
 **O agente:**
 1. Lê o `plan.md` ativo (injetado pelo plugin `j.plan-autoload`)
 2. Executa wave por wave com validação em cada etapa
-3. Spawna `@j.validator` se há spec correspondente
-4. Atualiza `execution-state.md` com progresso
+3. Usa o caminho rápido local: `.opencode/scripts/lint-structure.sh` + `.opencode/scripts/test-related.sh`
+4. Spawna `@j.validator` se há spec correspondente
+5. Atualiza `execution-state.md` com progresso
+6. Encerra quando código + testes de task estão verdes; depois disso, o caller deve rodar `/j.check`
+
+---
+
+## /j.sync-docs
+
+Atualiza `AGENTS.md`, docs de domínio e docs de princípios com base nos arquivos-chave do codebase.
+
+```
+/j.sync-docs
+/j.sync-docs pagamentos
+```
+
+**O que faz:**
+1. Lê `.opencode/state/workflow-config.md`
+2. Escolhe onde cada conhecimento deve ficar:
+   - `AGENTS.md` para regras locais de trabalho
+   - `docs/domain/*` para comportamento de negócio
+   - `docs/principles/*` para padrões técnicos reaproveitáveis
+3. Atualiza `docs/domain/INDEX.md` e `docs/principles/manifest` quando necessário
+4. Adiciona marcadores `juninho:sync` para facilitar o acompanhamento da sincronia doc↔code
 
 ---
 
@@ -188,7 +210,8 @@ Wave 2 (sequencial):
 
 Wave 3:
   @j.validator → verifica todas as tasks
-  @j.unify → merge + PR
+  /j.check → valida o repositório inteiro
+  @j.unify → closeout configurável + PR
 ```
 
 **Quando usar:** backlog de tasks independentes (sem dependências cruzadas de arquivos).
@@ -197,7 +220,7 @@ Wave 3:
 
 ## /j.check
 
-Roda todos os quality gates em sequência: TypeScript, linter e testes.
+Roda a verificação ampla do repositório após a implementação.
 
 ```
 /j.check
@@ -205,16 +228,16 @@ Roda todos os quality gates em sequência: TypeScript, linter e testes.
 
 **Equivalente a:**
 ```bash
-tsc --noEmit && eslint . --max-warnings=0 && jest --passWithNoTests
+.opencode/scripts/check-all.sh
 ```
 
-**Quando usar:** antes de criar um PR ou após uma sessão de implementação longa — garante que tudo está limpo.
+**Quando usar:** depois que `/j.implement` terminar ou antes de `/j.unify`.
 
 ---
 
 ## /j.lint
 
-Roda apenas o linter.
+Roda o lint estrutural usado no pre-commit.
 
 ```
 /j.lint
@@ -222,16 +245,16 @@ Roda apenas o linter.
 
 **Equivalente a:**
 ```bash
-eslint . --max-warnings=0
+.opencode/scripts/lint-structure.sh
 ```
 
-**Quando usar:** após ajustes de estilo ou quando você sabe que TypeScript e testes estão OK.
+**Quando usar:** durante a implementação, ou quando o pre-commit falhar no lint estrutural.
 
 ---
 
 ## /j.test
 
-Roda apenas a suite de testes.
+Roda os testes relacionados às mudanças atuais.
 
 ```
 /j.test
@@ -239,10 +262,10 @@ Roda apenas a suite de testes.
 
 **Equivalente a:**
 ```bash
-jest --passWithNoTests
+.opencode/scripts/test-related.sh
 ```
 
-**Quando usar:** para verificar rapidamente se as mudanças quebraram algum teste existente.
+**Quando usar:** durante a implementação, antes de devolver o controle para `/j.check`.
 
 ---
 

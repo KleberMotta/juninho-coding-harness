@@ -3,3 +3,4 @@ node_modules/
 .test-project
 dist
 validation-report.md
+evals/output/

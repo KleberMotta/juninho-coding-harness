@@ -8,6 +8,7 @@ export function writeState(projectDir: string): void {
   writeFileSync(path.join(stateDir, "execution-state.md"), EXECUTION_STATE)
   writeFileSync(path.join(stateDir, "validator-work.md"), VALIDATOR_WORK)
   writeFileSync(path.join(stateDir, "implementer-work.md"), IMPLEMENTER_WORK)
+  writeFileSync(path.join(stateDir, "workflow-config.md"), WORKFLOW_CONFIG)
 }
 
 // ─── Persistent Context ───────────────────────────────────────────────────────
@@ -178,4 +179,39 @@ Track which files were changed in this session:
 ---
 
 *Updated by @j.implementer. Reset by UNIFY at end of each feature cycle.*
+`
+
+const WORKFLOW_CONFIG = `# Workflow Config
+
+Configure how the harness should behave in this repository.
+Edit these defaults to match your delivery workflow.
+
+## Implement Phase
+
+- pre_commit_scope: related
+- post_implement_full_check: enabled
+- reenter_implement_on_full_check_failure: enabled
+
+## Unify Phase
+
+- unify_enabled: true
+- update_persistent_context: true
+- update_domain_docs: true
+- update_domain_index: true
+- merge_worktrees: true
+- create_pull_request: true
+- create_delivery_pr_body: true
+
+## Documentation Sync
+
+- prefer_agents_md_for_local_rules: true
+- prefer_domain_docs_for_business_behavior: true
+- prefer_principle_docs_for_cross_cutting_tech: true
+- sync_markers: enabled
+
+## Notes
+
+- \`related\` means the pre-commit path should lint structure and run only tests related to staged files.
+- \`post_implement_full_check\` means the orchestrator should run \`.opencode/scripts/check-all.sh\` after \`@j.implementer\` exits.
+- When \`reenter_implement_on_full_check_failure\` is enabled, pass the failing output back to \`@j.implementer\` instead of fixing it outside the implementation loop.
 `

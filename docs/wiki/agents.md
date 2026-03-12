@@ -107,10 +107,11 @@ Executa planos e specs com o loop **READ→ACT→COMMIT→VALIDATE**.
 ### Loop de execução
 
 ```
-READ   → lê spec + plan + TODOS os arquivos que vai modificar
-ACT    → implementa seguindo padrões existentes do codebase
-COMMIT → commit claro descrevendo o que mudou e por quê
-VALIDATE → TypeScript + testes + spawn @j.validator se spec existe
+READ     → lê spec + plan + TODOS os arquivos que vai modificar
+ACT      → implementa seguindo padrões existentes do codebase
+COMMIT   → pre-commit rápido (lint estrutural + testes relacionados)
+VALIDATE → spawn @j.validator se spec existe
+EXIT     → devolve o controle para `/j.check` fazer a verificação ampla do repositório
 ```
 
 ### Execução em waves
@@ -125,6 +126,10 @@ Para tarefas complexas, paralela via worktrees:
 
 ### Hashline awareness
 Usa referências `NN#XX:` para edições estáveis. Se o plugin `j.hashline-edit` rejeitar um edit como stale, relê o arquivo antes de tentar novamente.
+
+### Limite de escopo
+- O `@j.implementer` não deve continuar trabalhando só para rodar check amplo do repositório
+- Se `/j.check` falhar depois que o implementer sair, o caller deve invocá-lo novamente com a saída do erro
 
 ---
 
@@ -177,15 +182,15 @@ Sempre inclui notas positivas. Veredicto: `LGTM | LGTM_WITH_NOTES | NEEDS_WORK`.
 
 **Modelo:** claude-sonnet-4-6 | **Modo:** subagent
 
-Fecha o loop após implementação: reconcilia, documenta e faz o ship.
+Fecha o loop após implementação: reconcilia, documenta e faz o ship conforme `.opencode/state/workflow-config.md`.
 
 ### Protocolo
 
-1. **Verifica completude** — checa cada task do `plan.md` (DONE/PARTIAL/SKIPPED)
-2. **Atualiza docs de domínio** — `docs/domain/INDEX.md` com novas entidades/padrões
-3. **Merge de worktrees** — se execução paralela foi usada
-4. **Cria PR** — `gh pr create` com body gerado da spec
-5. **Limpa estado** — remove `.plan-ready`, arquiva `plan.md`, reseta `execution-state.md`
+1. **Lê `workflow-config.md`** — decide quais passos estão habilitados
+2. **Verifica completude** — checa cada task do `plan.md` (DONE/PARTIAL/SKIPPED)
+3. **Atualiza docs e estado** — apenas quando esses passos estiverem habilitados
+4. **Merge de worktrees** — se execução paralela foi usada e merge estiver habilitado
+5. **Cria PR** — com body rico em contexto, solução, arquivos alterados e passos de validação, quando habilitado
 
 ---
 
@@ -249,6 +254,8 @@ Feature complexa → /j.spec (@j.spec-writer) → /j.plan → /j.implement
                                                @j.validator verifica
                                                        ↓
                                                @j.reviewer (advisory)
+                                                       ↓
+                                               /j.check
                                                        ↓
                                                @j.unify → PR
 ```

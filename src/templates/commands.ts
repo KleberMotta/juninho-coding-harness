@@ -7,6 +7,7 @@ export function writeCommands(projectDir: string): void {
   writeFileSync(path.join(commandsDir, "j.plan.md"), PLAN)
   writeFileSync(path.join(commandsDir, "j.spec.md"), SPEC)
   writeFileSync(path.join(commandsDir, "j.implement.md"), IMPLEMENT)
+  writeFileSync(path.join(commandsDir, "j.sync-docs.md"), SYNC_DOCS)
   writeFileSync(path.join(commandsDir, "j.init-deep.md"), INIT_DEEP)
   writeFileSync(path.join(commandsDir, "j.start-work.md"), START_WORK)
   writeFileSync(path.join(commandsDir, "j.handoff.md"), HANDOFF)
@@ -138,13 +139,19 @@ Invoke the \`@j.implementer\` agent to build what was planned or specified.
 ## What happens
 
 1. \`@j.implementer\` reads the active \`plan.md\` (auto-loaded by plan-autoload plugin)
-2. Or reads the specified spec file
-3. Executes in waves:
+2. Reads \`.opencode/state/workflow-config.md\` to understand handoff and UNIFY behavior
+3. Or reads the specified spec file
+4. Executes in waves:
    - Wave 1: Foundation (schema, types, migrations)
    - Wave 2: Core logic (services, API routes)
    - Wave 3: Integration (wire-up, tests)
-4. Validates after each wave
-5. Spawns \`@j.validator\` for spec compliance
+5. Uses the fast pre-commit path while implementing:
+   - \`.opencode/scripts/lint-structure.sh\`
+   - \`.opencode/scripts/test-related.sh\`
+6. Spawns \`@j.validator\` for spec compliance
+7. Exits when code changes and task-level tests are complete
+8. The caller then runs \`.opencode/scripts/check-all.sh\` or \`/j.check\`
+9. If the repo-wide check fails, delegate back to \`@j.implementer\` with the failing output
 
 ## Delegation Rule (MANDATORY)
 
@@ -159,14 +166,60 @@ When ANY sub-agent returns output:
 
 ## After implementation
 
-Run \`/j.implement\` again if waves are incomplete, or \`@j.unify\` to merge and create PR.
+Run \`/j.check\` for repo-wide verification.
+If \`/j.check\` fails, invoke \`/j.implement\` again with the failing output.
+Run \`/j.unify\` only after the full check passes and \`workflow-config.md\` enables UNIFY.
+`
+
+// ─── /sync-docs ───────────────────────────────────────────────────────────────
+
+const SYNC_DOCS = `# /sync-docs — Refresh AGENTS and Documentation
+
+Generate or update \`AGENTS.md\`, domain docs, and principle docs using the current code as source of truth.
+
+## Usage
+
+\`\`\`
+/j.sync-docs
+/j.sync-docs <path or domain>
+\`\`\`
+
+## What happens
+
+1. Read \`.opencode/state/workflow-config.md\`
+2. Identify key files for the requested scope
+3. Update the right doc surface for each kind of knowledge:
+   - \`AGENTS.md\` for directory-local working rules and commands
+   - \`docs/domain/*\` for business behavior and invariants
+   - \`docs/principles/*\` for cross-cutting technical patterns
+4. Add or refresh sync markers such as:
+   - \`<!-- juninho:sync source=src/payments/service.ts hash=abc123 -->\`
+5. Update \`docs/domain/INDEX.md\` and \`docs/principles/manifest\` when new docs are added or renamed
+
+## Rules
+
+- Prefer small, high-signal \`AGENTS.md\` files close to the code they describe
+- Keep business behavior out of \`AGENTS.md\`; put it in \`docs/domain/*\`
+- Keep technical principles reusable; do not bury them in a module-specific doc
+- Use key-file sync markers so doc drift is visible during later updates
+
+## Delegation Rule (MANDATORY)
+
+You MUST delegate this task to \`@j.implementer\` using the \`task()\` tool.
+Do NOT rewrite the docs yourself when the harness workflow asks for agent execution.
+
+## When to use
+
+- After finishing a feature before human review
+- After major refactors that changed local rules or business behavior
+- When CARL recall quality degrades because docs or manifests are stale
 `
 
 // ─── /init-deep ───────────────────────────────────────────────────────────────
 
 const INIT_DEEP = `# /init-deep — Deep Codebase Initialization
 
-Perform a deep scan of the codebase and generate hierarchical AGENTS.md files and domain documentation.
+Perform a deep scan of the codebase and generate hierarchical AGENTS.md files, domain documentation, and local quality-gate scripts.
 
 ## Usage
 
@@ -200,6 +253,13 @@ Adds entries to \`docs/principles/manifest\` (KEY=VALUE format):
 - Canonical code patterns discovered
 - Architectural directives
 - Technology decisions
+
+### 4. Refresh local automation stubs
+
+- Validate \`.opencode/scripts/lint-structure.sh\`
+- Validate \`.opencode/scripts/test-related.sh\`
+- Validate \`.opencode/scripts/check-all.sh\`
+- Align commands in \`AGENTS.md\` with the actual repository scripts
 
 ## When to use
 
@@ -329,7 +389,8 @@ Activate maximum parallelism mode — work until all tasks in execution-state.md
    - No merge conflicts by design
 4. \`@j.validator\` runs after each wave
 5. Loop continues until all tasks are marked complete
-6. \`@j.unify\` merges worktrees and creates PR
+6. Run \`/j.check\` once task-level work is done
+7. \`@j.unify\` runs only if closeout is enabled in \`workflow-config.md\`
 
 ## When to use
 
@@ -356,7 +417,7 @@ Wave 3 (parallel):
 ## Safety
 
 - Each worktree is isolated — no cross-contamination
-- Merge happens only after all waves pass validation
+- Merge happens only after all waves pass validation and the repo-wide check passes
 - If any wave fails, the loop pauses and reports blockers
 `
 
@@ -364,7 +425,7 @@ Wave 3 (parallel):
 
 const CHECK = `# /check — Run All Quality Gates
 
-Run typecheck + lint + tests manually — the same checks the pre-commit hook enforces.
+Run the full repository verification after \`@j.implementer\` exits.
 
 ## Usage
 
@@ -374,27 +435,31 @@ Run typecheck + lint + tests manually — the same checks the pre-commit hook en
 
 ## What runs
 
-1. \`tsc --noEmit\` — TypeScript compilation check (no output)
-2. \`eslint . --max-warnings=0\` — Linter (treats warnings as errors)
-3. \`jest --passWithNoTests\` — Full test suite
+\`.opencode/scripts/check-all.sh\`
+
+This script is expected to run the repository-wide checks for the current stack.
+Typical examples:
+- \`npm run typecheck && npm run lint && npm test\`
+- \`./gradlew test\`
+- \`./mvnw test\`
 
 ## When to use
 
-- Before committing, to verify everything passes
-- After a refactor that touched many files
-- When the pre-commit hook failed and you want to debug which check failed
+- After \`/j.implement\` returns control to the caller
+- Before \`/j.unify\`
+- After a refactor that touched many files or workflows
 
 ## Notes
 
-These are the same checks run by the \`.git/hooks/pre-commit\` hook installed by juninho.
-The hook runs automatically on every \`git commit\` — this command lets you run them on-demand.
+This is intentionally broader than the pre-commit hook.
+The pre-commit hook stays fast and only runs structure lint plus tests related to staged files.
 `
 
 // ─── /lint ────────────────────────────────────────────────────────────────────
 
 const LINT = `# /lint — Run Linter
 
-Run the linter only for fast iteration during implementation.
+Run the structure lint used by the pre-commit path.
 
 ## Usage
 
@@ -404,20 +469,20 @@ Run the linter only for fast iteration during implementation.
 
 ## What runs
 
-\`eslint . --max-warnings=0\`
+\`.opencode/scripts/lint-structure.sh\`
 
 ## When to use
 
-- During active implementation, to catch style/pattern issues quickly
-- When you only want lint feedback without running the full test suite
-- After edits to check for obvious issues before committing
+- During active implementation, to catch structural issues quickly
+- When the pre-commit hook fails on lint and you want the same check on demand
+- After editing docs, scripts, or config files that need non-test validation
 `
 
 // ─── /test ────────────────────────────────────────────────────────────────────
 
 const TEST = `# /test — Run Test Suite
 
-Run the test suite only.
+Run fast, change-scoped tests during implementation.
 
 ## Usage
 
@@ -436,13 +501,16 @@ Run the test suite only.
 
 ## What runs
 
-\`jest --passWithNoTests [pattern]\`
+\`.opencode/scripts/test-related.sh\`
+
+If the repository defines \`test:related\`, that script is preferred.
+Otherwise the default fallback tries tools such as \`jest --findRelatedTests\` or \`vitest related\`.
 
 ## When to use
 
-- After implementing a feature, to verify tests pass
-- When debugging a failing test — use \`/j.test <pattern>\` to target specific tests
-- To check test coverage on a specific module
+- During implementation, before leaving \`@j.implementer\`
+- When the pre-commit hook fails on related tests and you want to rerun the same scope
+- Use \`/j.check\` for the full repository suite after implementation
 `
 
 // ─── /pr-review ───────────────────────────────────────────────────────────────
@@ -478,6 +546,14 @@ Launch the \`@j.reviewer\` agent to perform an advisory code review on the curre
 | "Is this good code?" | "Does this satisfy the spec?" |
 | Never blocks | Gates the pipeline |
 | Read-only | Can fix issues directly |
+
+## Quality target
+
+Aim for PR artifacts with the same quality bar as a strong human-authored engineering PR:
+- state the purpose and problem clearly
+- summarize the solution in reviewer-friendly steps
+- map changed files to responsibilities
+- provide runnable validation steps with expected outcomes
 `
 
 // ─── /status ──────────────────────────────────────────────────────────────────
@@ -516,7 +592,7 @@ No agent needed — this is a direct state file read.
 
 const UNIFY_CMD = `# /unify — Close the Loop
 
-Invoke the \`@j.unify\` agent to reconcile plan vs delivery, update domain docs, merge worktrees, and create the PR.
+Invoke the \`@j.unify\` agent to reconcile plan vs delivery and execute only the enabled closeout steps.
 
 ## Usage
 
@@ -526,17 +602,18 @@ Invoke the \`@j.unify\` agent to reconcile plan vs delivery, update domain docs,
 
 ## What happens
 
-1. Reconcile \`plan.md\` vs actual git diff — mark tasks DONE/PARTIAL/SKIPPED
-2. Log decisions to \`persistent-context.md\`
-3. Update \`execution-state.md\` — mark all tasks complete
-4. Update \`docs/domain/\` files affected by this feature
-5. Update \`docs/domain/INDEX.md\`
-6. Merge all worktrees + \`git worktree remove\`
-7. \`gh pr create --body "\$(cat docs/specs/{slug}/spec.md)"\`
+1. Read \`.opencode/state/workflow-config.md\`
+2. Reconcile \`plan.md\` vs actual git diff — mark tasks DONE/PARTIAL/SKIPPED
+3. Run only the enabled closeout steps, such as:
+   - update \`persistent-context.md\`
+   - refresh \`docs/domain/\` or \`docs/domain/INDEX.md\`
+   - merge worktrees
+   - create a PR
+4. If PR creation is enabled, draft a rich PR body with purpose, problem, solution, changed files, and validation steps
 
 ## When to use
 
-After \`@j.implementer\` signals all tasks complete and \`@j.validator\` has approved.
+After \`@j.implementer\` exits, \`/j.check\` passes, and \`@j.validator\` has approved the required work.
 
 ## Prerequisites
 
@@ -546,6 +623,6 @@ After \`@j.implementer\` signals all tasks complete and \`@j.validator\` has app
 
 ## Note
 
-UNIFY is mandatory — no feature is complete without it.
-It is the only agent that merges worktrees and creates PRs.
+UNIFY behavior is controlled by \`.opencode/state/workflow-config.md\`.
+If PR creation or doc updates are disabled there, \`@j.unify\` should skip those steps and report what was intentionally not executed.
 `

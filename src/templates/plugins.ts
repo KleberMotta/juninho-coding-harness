@@ -274,7 +274,7 @@ function stripCodeBlocks(text: string): string {
 function extractKeywords(text: string): Set<string> {
   // Extract meaningful words from text (stripped of code) for matching
   const words = new Set<string>()
-  for (const w of text.split(/[^a-zA-Z]+/).filter((w) => w.length > 3)) {
+  for (const w of text.split(/[^a-zA-Z0-9_-]+/).filter((w) => w.length >= 3)) {
     words.add(w.toLowerCase())
   }
   return words
@@ -285,23 +285,25 @@ function extractPathKeywords(filePath: string): Set<string> {
   const parts = filePath.replace(/\\\\/g, "/").split("/")
   const words = new Set<string>()
   for (const part of parts) {
-    for (const w of part.split(/[^a-zA-Z]+/).filter((w) => w.length > 3)) {
+    for (const w of part.split(/[^a-zA-Z0-9_-]+/).filter((w) => w.length >= 3)) {
       words.add(w.toLowerCase())
     }
   }
   return words
 }
 
-function matchKeyword(keyword: string, textWords: Set<string>): boolean {
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^$()|[\\]{}]/g, "\\$&")
+}
+
+function matchKeyword(keyword: string, textWords: Set<string>, rawText: string): boolean {
   // Word-boundary matching — "auth" matches "auth" but NOT "authorize" or "author"
   // First check exact set membership (fast path), then regex fallback for
-  // multi-word recall terms
+  // short tokens and multi-word recall terms.
   if (textWords.has(keyword)) return true
-  if (keyword.includes(" ")) {
-    // Multi-word recall terms not in the word set — skip (set splits on spaces)
-    return false
-  }
-  return false
+
+  const pattern = new RegExp("\\b" + escapeRegex(keyword) + "\\b", "i")
+  return pattern.test(rawText)
 }
 
 // ── ContextCollector — budget-aware dedup singleton ──
@@ -368,7 +370,7 @@ export default (async ({ directory }: { directory: string }) => {
     return extractKeywords(stripCodeBlocks(taskText))
   }
 
-  function matchAgainstSources(keywords: Set<string>): string[] {
+  function matchAgainstSources(keywords: Set<string>, rawText: string): string[] {
     const manifestPath = path.join(directory, "docs", "principles", "manifest")
     const indexPath = path.join(directory, "docs", "domain", "INDEX.md")
     const addedKeys: string[] = []
@@ -382,7 +384,7 @@ export default (async ({ directory }: { directory: string }) => {
         const dedupKey = \`principle:\${entry.key}\`
         if (collector.has(dedupKey)) continue
 
-        const matched = entry.recall.some((kw) => matchKeyword(kw, keywords))
+        const matched = entry.recall.some((kw) => matchKeyword(kw, keywords, rawText))
         if (!matched) continue
 
         const entryFilePath = path.join(directory, entry.file)
@@ -401,7 +403,7 @@ export default (async ({ directory }: { directory: string }) => {
       const domains = parseDomainIndex(index)
 
       for (const entry of domains) {
-        const matched = entry.keywords.some((kw) => matchKeyword(kw, keywords))
+        const matched = entry.keywords.some((kw) => matchKeyword(kw, keywords, rawText))
         if (!matched) continue
 
         for (const file of entry.files.slice(0, 3)) {
@@ -451,8 +453,15 @@ export default (async ({ directory }: { directory: string }) => {
 
       if (allKeywords.size === 0) return
 
+      const rawSignal = [
+        strippedContent,
+        filePath,
+        ...Array.from(taskKw),
+        ...Array.from(pathKw),
+      ].join(" ").toLowerCase()
+
       // ── Match and inject ──
-      const addedKeys = matchAgainstSources(allKeywords)
+      const addedKeys = matchAgainstSources(allKeywords, rawSignal)
       if (addedKeys.length === 0) return
 
       const newEntries = collector.getNewEntries(addedKeys)
@@ -495,6 +504,11 @@ const SKILL_MAP: Array<{ pattern: RegExp; skill: string }> = [
   { pattern: /app\\/api\\/.*\\.(ts|js)$/, skill: "j.api-route-creation" },
   { pattern: /actions\\.(ts|js)$/, skill: "j.server-action-creation" },
   { pattern: /schema\\.prisma$/, skill: "j.schema-migration" },
+  { pattern: /(^|\\/)AGENTS\\.md$/, skill: "j.agents-md-writing" },
+  { pattern: /docs\\/domain\\/.*\\.md$/, skill: "j.domain-doc-writing" },
+  { pattern: /docs\\/principles\\/.*(?:\\.md|manifest)$/, skill: "j.principle-doc-writing" },
+  { pattern: /(^|\\/)(\\.opencode\\/scripts|scripts)\\/.*\\.sh$/, skill: "j.shell-script-writing" },
+  { pattern: /(^|\\/)pre-commit$/, skill: "j.shell-script-writing" },
 ]
 
 export default (async ({ directory }: { directory: string }) => {

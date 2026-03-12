@@ -81,7 +81,7 @@ Analisa o **conteúdo** dos arquivos lidos (não apenas o path) para injetar pri
    - *Task awareness* (fire-once por sessão): lê `execution-state.md` e extrai keywords do Goal + Task List
    - *Conteúdo do arquivo* (primário): keywords do texto do arquivo lido, após strip de código
    - *Path do arquivo* (secundário): complementa a análise de conteúdo
-3. **Word-boundary matching** — "auth" match "auth" mas NÃO "authorize" ou "author"
+3. **Word-boundary matching com fallback regex** — "auth" match "auth" mas NÃO "authorize" ou "author"; termos curtos e frases também são validados no texto bruto
 4. **ContextCollector** com budget cap (`MAX_CONTEXT_BYTES = 8000`) e dedup por key — previne estouro de contexto
 5. **Compaction survival** — `experimental.session.compacting` re-injeta todos os docs coletados via `output.context.push`
 
@@ -106,6 +106,10 @@ Mapeia o path do arquivo para uma skill e injeta instruções contextualmente:
 | `app/api/**/*.ts` | `api-route-creation/SKILL.md` |
 | `**/actions.ts` | `server-action-creation/SKILL.md` |
 | `**/schema.prisma` | `schema-migration/SKILL.md` |
+| `**/AGENTS.md` | `agents-md-writing/SKILL.md` |
+| `docs/domain/**/*.md` | `domain-doc-writing/SKILL.md` |
+| `docs/principles/**` | `principle-doc-writing/SKILL.md` |
+| `.opencode/scripts/**/*.sh`, `scripts/**/*.sh`, `pre-commit` | `shell-script-writing/SKILL.md` |
 
 **Duas fases:**
 - **Read:** injeta SKILL.md completo no output (agente recebe instruções ANTES de escrever)

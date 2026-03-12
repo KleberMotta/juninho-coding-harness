@@ -9,6 +9,18 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Changed
+- Pre-commit do framework agora roda lint estrutural e testes relacionados aos arquivos staged por padrão, deixando checks gerais para a etapa pós-implementação
+- `@j.implementer` agora encerra após código + testes de tarefa; o fluxo prevê `/j.check` e reentrada no implementer quando o check amplo falhar
+- `@j.unify` agora segue `.opencode/state/workflow-config.md`, permitindo configurar merge, PR e atualização de docs
+- O scaffold ganhou skills para `AGENTS.md`, docs de domínio, docs de princípios e scripts shell, reduzindo viés para frontend/Next.js
+- Novo comando `/j.sync-docs` e marcadores `juninho:sync` para alinhar documentação com arquivos-chave do código
+
+### Added
+- `.opencode/scripts/pre-commit.sh`, `.opencode/scripts/lint-structure.sh`, `.opencode/scripts/test-related.sh` e `.opencode/scripts/check-all.sh`
+- `.opencode/state/workflow-config.md` para controlar handoff, checks pós-implementação e comportamento do UNIFY
+- Evals em `evals/` para medir a qualidade do harness contra um PR de referência
+
 ### Planejado para 1.0.0-beta.1
 - [ ] Suporte a `juninho update` para atualizar arquivos gerados mantendo customizações
 - [ ] Comando `juninho status` para mostrar o que está instalado e versões

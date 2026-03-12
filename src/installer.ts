@@ -7,6 +7,7 @@ import { writePlugins } from "./templates/plugins.js"
 import { writeTools } from "./templates/tools.js"
 import { writeCommands } from "./templates/commands.js"
 import { writeState } from "./templates/state.js"
+import { writeSupportScripts } from "./templates/support-scripts.js"
 import { writeDocs, patchOpencodeJson } from "./templates/docs.js"
 import { type JuninhoConfig, loadConfig, saveConfig } from "./config.js"
 import { discoverAvailableModels } from "./discovery.js"
@@ -237,7 +238,7 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
 
     // Step 4: Write skills
     writeSkills(projectDir)
-    console.log("[juninho] ✓ Skills created (5)")
+    console.log("[juninho] ✓ Skills created (9)")
 
     // Step 5: Write plugins
     writePlugins(projectDir)
@@ -247,26 +248,30 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
     writeTools(projectDir)
     console.log("[juninho] ✓ Tools created (4)")
 
-    // Step 7: Write commands
-    writeCommands(projectDir)
-    console.log("[juninho] ✓ Commands created (13)")
+    // Step 7: Write support scripts
+    writeSupportScripts(projectDir)
+    console.log("[juninho] ✓ Support scripts created (4)")
 
-    // Step 8: Write state files
+    // Step 8: Write commands
+    writeCommands(projectDir)
+    console.log("[juninho] ✓ Commands created (14)")
+
+    // Step 9: Write state files
     writeState(projectDir)
     console.log("[juninho] ✓ State files created")
 
-    // Step 9: Write docs
+    // Step 10: Write docs
     writeDocs(projectDir)
     console.log("[juninho] ✓ Docs scaffold created")
 
-    // Step 10: Patch opencode.json (with resolved models)
+    // Step 11: Patch opencode.json (with resolved models)
     patchOpencodeJson(projectDir, models)
     console.log("[juninho] ✓ opencode.json patched")
 
-    // Step 11: Install pre-commit hook (outer validation loop)
+    // Step 12: Install pre-commit hook (outer validation loop)
     writePreCommitHook(projectDir)
 
-    // Step 12: Write marker
+    // Step 13: Write marker
     writeFileSync(marker, new Date().toISOString())
 
     console.log("")
@@ -299,20 +304,18 @@ function writePreCommitHook(projectDir: string): void {
 
   const hookContent = `#!/bin/sh
 # Deterministic outer validation loop — installed by juninho
-# Runs typecheck + lint + tests before every commit.
+# Runs structure lint + related tests before every commit.
 # Do not bypass with --no-verify.
 set -e
 
-echo "[pre-commit] Running typecheck..."
-npx tsc --noEmit 2>&1 || { echo "[pre-commit] FAIL: TypeScript errors"; exit 1; }
+ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-echo "[pre-commit] Running lint..."
-npx eslint . --max-warnings=0 2>&1 || { echo "[pre-commit] FAIL: Lint errors"; exit 1; }
+if [ ! -x "$ROOT_DIR/.opencode/scripts/pre-commit.sh" ]; then
+  echo "[pre-commit] FAIL: .opencode/scripts/pre-commit.sh not found or not executable"
+  exit 1
+fi
 
-echo "[pre-commit] Running tests..."
-npx jest --passWithNoTests 2>&1 || { echo "[pre-commit] FAIL: Tests failed"; exit 1; }
-
-echo "[pre-commit] All checks passed"
+exec "$ROOT_DIR/.opencode/scripts/pre-commit.sh"
 `
 
   writeFileSync(hookPath, hookContent)
@@ -335,8 +338,13 @@ function createDirectories(projectDir: string): void {
     ".opencode/skills/j.api-route-creation",
     ".opencode/skills/j.server-action-creation",
     ".opencode/skills/j.schema-migration",
+    ".opencode/skills/j.agents-md-writing",
+    ".opencode/skills/j.domain-doc-writing",
+    ".opencode/skills/j.principle-doc-writing",
+    ".opencode/skills/j.shell-script-writing",
     ".opencode/plugins",
     ".opencode/tools",
+    ".opencode/scripts",
     ".opencode/commands",
     ".opencode/state",
     "docs",

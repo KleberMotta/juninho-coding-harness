@@ -42,13 +42,14 @@ npm run dev
 src/
 ├── cli.ts          # Entry point — parseia args, chama runSetup()
 ├── installer.ts    # Orquestra o setup: cria dirs, chama cada template
+├── templates/support-scripts.ts # Scripts shell gerados para hooks e checks
 └── templates/
-    ├── agents.ts   # 7 agentes (planner, spec-writer, implementer...)
-    ├── plugins.ts  # 10 plugins OpenCode (hooks de sessão/arquivo)
+    ├── agents.ts   # 9 agentes (planner, spec-writer, implementer...)
+    ├── plugins.ts  # 12 plugins OpenCode (hooks de sessão/arquivo)
     ├── tools.ts    # 4 ferramentas (lsp, ast-grep, find-pattern...)
-    ├── skills.ts   # 5 skills (test-writing, page-creation...)
-    ├── commands.ts # 7 slash commands (/plan, /spec, /implement...)
-    ├── state.ts    # Templates de estado (persistent-context, execution-state)
+    ├── skills.ts   # 9 skills (tests, docs, scripts, stack-specific)
+    ├── commands.ts # 14 slash commands (/plan, /spec, /implement...)
+    ├── state.ts    # Templates de estado (persistent-context, execution-state, workflow-config)
     └── docs.ts     # AGENTS.md, INDEX.md, manifest + patchOpencodeJson()
 ```
 
@@ -60,8 +61,8 @@ juninho setup
 cli.ts → runSetup(projectDir)
      ↓
 installer.ts → createDirectories() → writeAgents() → writeSkills()
-             → writePlugins() → writeTools() → writeCommands()
-             → writeState() → writeDocs() → patchOpencodeJson()
+             → writePlugins() → writeTools() → writeSupportScripts()
+             → writeCommands() → writeState() → writeDocs() → patchOpencodeJson()
              → write .juninho-installed marker
 ```
 
@@ -99,6 +100,13 @@ installer.ts → createDirectories() → writeAgents() → writeSkills()
 2. Adicione a string do `SKILL.md` em `src/templates/skills.ts`
 3. Adicione o mapeamento de path em `src/templates/plugins.ts` no `skill-inject`
 4. Chame `writeFileSync` em `writeSkills()`
+
+### Ajustar scripts de hook ou checks
+
+1. Edite `src/templates/support-scripts.ts`
+2. Mantenha o pre-commit rápido: lint estrutural + testes relacionados
+3. Coloque checks amplos em `.opencode/scripts/check-all.sh`
+4. Atualize `docs/wiki/commands.md` e `README.md` se o comportamento exposto ao usuário mudar
 
 ### Adicionar um novo comando slash
 

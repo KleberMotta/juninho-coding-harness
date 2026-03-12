@@ -28,10 +28,11 @@ Output esperado:
 [juninho] Target: /caminho/para/meu-projeto
 [juninho] ✓ Directories created
 [juninho] ✓ Agents created (9)
-[juninho] ✓ Skills created (5)
-[juninho] ✓ Plugins created (11)
+[juninho] ✓ Skills created (9)
+[juninho] ✓ Plugins created (12)
 [juninho] ✓ Tools created (4)
-[juninho] ✓ Commands created (13)
+[juninho] ✓ Support scripts created (4)
+[juninho] ✓ Commands created (14)
 [juninho] ✓ State files created
 [juninho] ✓ Docs scaffold created
 [juninho] ✓ opencode.json patched
@@ -59,7 +60,7 @@ Depois:
 /j.implement
 ```
 
-O `@j.implementer` executa o plano wave por wave, validando a cada etapa.
+O `@j.implementer` executa o plano wave por wave, valida as tasks e depois devolve o controle para `/j.check` fazer a verificação ampla do repositório.
 
 ## Testando localmente (sem publicar no npm)
 
@@ -89,14 +90,15 @@ Após o setup, seu projeto terá:
 ├── skills/          ← instruções por tipo de arquivo
 ├── plugins/         ← hooks automáticos (auto-descobertos pelo OpenCode)
 ├── tools/           ← lsp, ast-grep, find-pattern, next-version
+├── scripts/         ← pre-commit, lint estrutural, testes relacionados, check amplo
 ├── commands/        ← /j.plan, /j.spec, /j.implement, /j.handoff, etc.
-└── state/           ← contexto persistente entre sessões
+└── state/           ← contexto persistente entre sessões + workflow-config
 
 AGENTS.md            ← referência rápida de todos os agentes e comandos
 opencode.json        ← patchado com definições dos agentes + MCP Context7
 docs/
 ├── domain/INDEX.md  ← índice de domínio (populado por /j.init-deep)
-├── principles/manifest ← lookup table do CARL
+├── principles/      ← manifest + docs-base para o CARL
 └── specs/           ← specs geradas por /j.spec
 worktrees/           ← para paralelização com git worktrees
 ```
