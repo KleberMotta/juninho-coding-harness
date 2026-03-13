@@ -2,12 +2,12 @@
 import { runSetup } from "./installer.js"
 import path from "path"
 
+const { version: VERSION } = require("../package.json") as { version: string }
+
 const args = process.argv.slice(2)
 const command = args[0] ?? ""
 const forceFlag = args.includes("--force")
 const targetDir = args.find(a => !a.startsWith("--") && a !== command) ?? process.cwd()
-
-const VERSION = "1.0.0-alpha.5"
 
 function showHelp(): void {
   console.log(`
@@ -21,6 +21,7 @@ Commands:
 
 Options:
   --force                 Reinstall even if already configured
+  --version, -v           Show juninho version
   --help, -h              Show this help message
 
 Model Tiers:
@@ -39,8 +40,14 @@ Examples:
 `)
 }
 
+function showVersion(): void {
+  console.log(VERSION)
+}
+
 if (command === "" || command === "--help" || command === "-h") {
   showHelp()
+} else if (command === "--version" || command === "-v") {
+  showVersion()
 } else if (command === "setup") {
   runSetup(path.resolve(targetDir), { force: forceFlag })
     .then(() => process.exit(0))
