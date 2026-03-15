@@ -1,0 +1,314 @@
+direction: down
+
+title: |md
+  # Juninho Coding Harness — Main Workflow
+  Complete feature lifecycle: Spec → Plan → Implement → Check → Unify
+| {
+  near: top-center
+  shape: text
+  style.font-size: 28
+}
+
+user: Developer {
+  shape: person
+  style.fill: "#4A90D9"
+  style.font-color: "#FFFFFF"
+  style.bold: true
+}
+
+# ═══ Phase 1: Specification ═══
+spec_cmd: "/j.spec <feature>" {
+  shape: step
+  style.fill: "#2196F3"
+  style.font-color: "#FFFFFF"
+  style.bold: true
+  style.font-size: 18
+}
+
+spec_writer: "@j.spec-writer (strong)" {
+  shape: hexagon
+  style.fill: "#1565C0"
+  style.font-color: "#FFFFFF"
+}
+
+spec_research: "Background Research" {
+  style.fill: "#E3F2FD"
+  style.border-radius: 8
+
+  explore1: "@j.explore\n(codebase scan)" {
+    shape: hexagon
+    style.fill: "#78909C"
+    style.font-color: "#FFF"
+  }
+  librarian1: "@j.librarian\n(external docs)" {
+    shape: hexagon
+    style.fill: "#78909C"
+    style.font-color: "#FFF"
+  }
+}
+
+interview: "5-Phase Interview" {
+  style.fill: "#BBDEFB"
+  style.border-radius: 8
+
+  p1: "1. Discovery" {shape: step; style.fill: "#E3F2FD"}
+  p2: "2. Requirements" {shape: step; style.fill: "#E3F2FD"}
+  p3: "3. Contract" {shape: step; style.fill: "#E3F2FD"}
+  p4: "4. Data Model" {shape: step; style.fill: "#E3F2FD"}
+  p5: "5. Review" {shape: step; style.fill: "#E3F2FD"}
+  p1 -> p2 -> p3 -> p4 -> p5
+}
+
+spec_approval: "Developer\nApproval?" {
+  shape: diamond
+  style.fill: "#FFF9C4"
+  style.stroke: "#F57F17"
+  style.bold: true
+}
+
+spec_file: "docs/specs/{slug}/spec.md" {
+  shape: document
+  style.fill: "#C8E6C9"
+  style.stroke: "#2E7D32"
+}
+
+user -> spec_cmd: "1"
+spec_cmd -> spec_writer: invokes
+spec_writer -> spec_research: "task(bg) parallel" {style.stroke-dash: 3}
+spec_writer -> interview: conducts
+interview -> spec_approval
+spec_approval -> spec_file: "yes ✓" {style.stroke: "#2E7D32"; style.stroke-width: 2}
+
+# ═══ Phase 2: Planning ═══
+plan_cmd: "/j.plan <goal>" {
+  shape: step
+  style.fill: "#FF9800"
+  style.font-color: "#FFFFFF"
+  style.bold: true
+  style.font-size: 18
+}
+
+planner: "@j.planner (strong)" {
+  shape: hexagon
+  style.fill: "#E65100"
+  style.font-color: "#FFFFFF"
+}
+
+planning_phases: "3-Phase Planning" {
+  style.fill: "#FFE0B2"
+  style.border-radius: 8
+
+  metis: "Metis — Intent Analysis\nclassify type + research" {
+    shape: step
+    style.fill: "#FFF3E0"
+  }
+  prometheus: "Prometheus — Interview\ncapture decisions → plan.md" {
+    shape: step
+    style.fill: "#FFF3E0"
+  }
+  momus: "Momus — Review\nexecutability gate" {
+    shape: step
+    style.fill: "#FFF3E0"
+  }
+  metis -> prometheus -> momus
+}
+
+plan_research: "Background Research" {
+  style.fill: "#FFF3E0"
+  style.border-radius: 8
+
+  explore2: "@j.explore\n(file map)" {
+    shape: hexagon
+    style.fill: "#78909C"
+    style.font-color: "#FFF"
+  }
+  librarian2: "@j.librarian\n(patterns)" {
+    shape: hexagon
+    style.fill: "#78909C"
+    style.font-color: "#FFF"
+  }
+}
+
+plan_reviewer: "@j.plan-reviewer (medium)" {
+  shape: hexagon
+  style.fill: "#FF8F00"
+  style.font-color: "#FFFFFF"
+}
+
+plan_approval: "Developer\nApproval?" {
+  shape: diamond
+  style.fill: "#FFF9C4"
+  style.stroke: "#F57F17"
+  style.bold: true
+}
+
+plan_file: "plan.md + CONTEXT.md\n+ .plan-ready flag" {
+  shape: document
+  style.fill: "#C8E6C9"
+  style.stroke: "#2E7D32"
+}
+
+user -> plan_cmd: "2"
+plan_cmd -> planner: invokes
+planner -> plan_research: "task(bg) parallel" {style.stroke-dash: 3}
+planner -> planning_phases
+planning_phases.momus -> plan_reviewer: "task()" {style.stroke-dash: 3}
+plan_reviewer -> planning_phases.momus: "OKAY / REJECT\n(loop)" {style.stroke-dash: 3; style.stroke: "#C62828"}
+planning_phases -> plan_approval
+plan_approval -> plan_file: "yes ✓" {style.stroke: "#2E7D32"; style.stroke-width: 2}
+
+# ═══ Phase 3: Implementation ═══
+impl_cmd: "/j.implement" {
+  shape: step
+  style.fill: "#4CAF50"
+  style.font-color: "#FFFFFF"
+  style.bold: true
+  style.font-size: 18
+}
+
+implementer: "@j.implementer (medium)" {
+  shape: hexagon
+  style.fill: "#1B5E20"
+  style.font-color: "#FFFFFF"
+}
+
+wave_exec: "Wave Execution" {
+  style.fill: "#C8E6C9"
+  style.border-radius: 8
+
+  worktrees: "Parallel tasks\n→ git worktrees" {
+    shape: parallelogram
+    style.fill: "#A5D6A7"
+  }
+
+  impl_loop: "Per-Task Loop" {
+    style.fill: "#81C784"
+    style.border-radius: 4
+
+    read: "READ\n(files + spec)" {shape: step; style.fill: "#C8E6C9"}
+    act: "ACT\n(edit code)" {shape: step; style.fill: "#C8E6C9"}
+    commit: "COMMIT\n(git commit)" {shape: step; style.fill: "#C8E6C9"}
+    validate: "VALIDATE\n(@j.validator)" {shape: step; style.fill: "#C8E6C9"}
+    read -> act -> commit -> validate
+  }
+
+  worktrees -> impl_loop: each task
+}
+
+pre_commit: "Pre-commit Hook" {
+  style.fill: "#FFE082"
+  style.border-radius: 4
+
+  lint_sh: "lint-structure.sh" {shape: step; style.fill: "#FFF8E1"}
+  test_sh: "test-related.sh" {shape: step; style.fill: "#FFF8E1"}
+  lint_sh -> test_sh
+}
+
+validator: "@j.validator (medium)" {
+  shape: hexagon
+  style.fill: "#78909C"
+  style.font-color: "#FFFFFF"
+}
+
+val_verdicts: "Verdict" {
+  style.fill: "#F5F5F5"
+  style.border-radius: 4
+
+  approved: "APPROVED ✓" {shape: step; style.fill: "#C8E6C9"}
+  fix: "FIX\n(validator fixes)" {shape: step; style.fill: "#FFE0B2"}
+  block: "BLOCK\n(escalate)" {shape: step; style.fill: "#FFCDD2"}
+}
+
+plugins_active: "12 Plugins Active" {
+  style.fill: "#E8F5E9"
+  style.stroke-dash: 3
+  style.border-radius: 4
+  style.font-size: 12
+
+  note: |md
+    skill-inject, auto-format,
+    comment-checker, hashline,
+    CARL, intent-gate,
+    todo-enforcer, memory...
+  |
+}
+
+user -> impl_cmd: "3"
+impl_cmd -> implementer: invokes
+implementer -> wave_exec
+wave_exec.impl_loop.commit -> pre_commit: "triggers" {style.stroke: "#F57F17"}
+wave_exec.impl_loop.validate -> validator: "task()" {style.stroke-dash: 3}
+validator -> val_verdicts
+
+# ═══ Phase 4: Verification ═══
+check_cmd: "/j.check" {
+  shape: step
+  style.fill: "#E91E63"
+  style.font-color: "#FFFFFF"
+  style.bold: true
+  style.font-size: 18
+}
+
+check_all: "check-all.sh (repo-wide)" {
+  style.fill: "#F8BBD0"
+  style.border-radius: 8
+
+  tc: "Type Check" {shape: step; style.fill: "#FCE4EC"}
+  fl: "Full Lint" {shape: step; style.fill: "#FCE4EC"}
+  ft: "Full Tests" {shape: step; style.fill: "#FCE4EC"}
+  tc -> fl -> ft
+}
+
+user -> check_cmd: "4"
+check_cmd -> check_all
+
+# ═══ Phase 5: Closeout ═══
+unify_cmd: "/j.unify" {
+  shape: step
+  style.fill: "#673AB7"
+  style.font-color: "#FFFFFF"
+  style.bold: true
+  style.font-size: 18
+}
+
+unify_agent: "@j.unify (medium)" {
+  shape: hexagon
+  style.fill: "#4527A0"
+  style.font-color: "#FFFFFF"
+}
+
+closeout: "Closeout Steps" {
+  style.fill: "#D1C4E9"
+  style.border-radius: 8
+
+  reconcile: "1. Reconcile\nplan vs delivery" {shape: step; style.fill: "#EDE7F6"}
+  log: "2. Log decisions\n→ persistent-context" {shape: step; style.fill: "#EDE7F6"}
+  docs: "3. Update\ndomain docs" {shape: step; style.fill: "#EDE7F6"}
+  merge: "4. Merge\nworktrees" {shape: step; style.fill: "#EDE7F6"}
+  pr: "5. Create PR" {shape: step; style.fill: "#EDE7F6"}
+  reconcile -> log -> docs -> merge -> pr
+}
+
+final_pr: "Pull Request Ready" {
+  shape: document
+  style.fill: "#A5D6A7"
+  style.stroke: "#2E7D32"
+  style.bold: true
+  style.font-size: 18
+}
+
+user -> unify_cmd: "5"
+unify_cmd -> unify_agent: invokes
+unify_agent -> closeout
+closeout -> final_pr
+
+# ═══ Feedback loops ═══
+check_all -> impl_cmd: "failures → fix" {
+  style.stroke: "#C62828"
+  style.stroke-dash: 3
+}
+
+val_verdicts.block -> user: "escalate to dev" {
+  style.stroke: "#C62828"
+  style.stroke-dash: 3
+}

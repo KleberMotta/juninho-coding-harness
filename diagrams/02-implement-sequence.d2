@@ -1,0 +1,206 @@
+title: |md
+  # Sequence: /j.implement → /j.check → /j.unify
+  Implementation, Verification, and Closeout phases
+| {
+  near: top-center
+  shape: text
+  style.font-size: 28
+}
+
+shape: sequence_diagram
+
+dev: Developer {
+  shape: person
+  style.fill: "#4A90D9"
+}
+implementer: "@j.implementer\n(medium)" {
+  style.fill: "#1B5E20"
+  style.font-color: "#FFF"
+}
+impl_worker: "@j.implementer\n(worktree)" {
+  style.fill: "#388E3C"
+  style.font-color: "#FFF"
+}
+validator: "@j.validator\n(medium)" {
+  style.fill: "#FF8F00"
+  style.font-color: "#FFF"
+}
+unify: "@j.unify\n(medium)" {
+  style.fill: "#4527A0"
+  style.font-color: "#FFF"
+}
+git: "Git" {
+  style.fill: "#F44336"
+  style.font-color: "#FFF"
+}
+hooks: "Pre-commit\nHooks" {
+  style.fill: "#FF9800"
+  style.font-color: "#FFF"
+}
+plugins: "Plugins\n(12 active)" {
+  style.fill: "#7B1FA2"
+  style.font-color: "#FFF"
+}
+fs: "File System" {
+  style.fill: "#2E7D32"
+  style.font-color: "#FFF"
+}
+
+# ═══ IMPLEMENT PHASE ═══
+impl_phase: "Phase 3 — /j.implement" {
+  style.fill: "#E8F5E9"
+  style.stroke: "#4CAF50"
+  style.bold: true
+  style.font-size: 16
+
+  dev -> implementer: "/j.implement"
+  implementer -> fs: "read plan.md, spec.md, execution-state.md"
+
+  wave1: "Wave 1 — Parallel Tasks (worktrees)" {
+    style.fill: "#C8E6C9"
+    style.bold: true
+
+    implementer -> git: "git worktree add worktrees/task-1 -b feature/task-1"
+    implementer -> git: "git worktree add worktrees/task-2 -b feature/task-2"
+
+    implementer -> impl_worker: "task(bg): execute task 1 — add avatar column to schema" {
+      style.stroke-dash: 3
+    }
+    implementer -> impl_worker: "task(bg): execute task 2 — create upload API route" {
+      style.stroke-dash: 3
+    }
+
+    task1: "Task 1: Schema Migration" {
+      style.fill: "#A5D6A7"
+      style.bold: true
+
+      impl_worker -> fs: "READ schema.prisma"
+      impl_worker.read_hook -> plugins: "→ skill-inject fires: schema-migration SKILL.md" {
+        style.stroke: "#7B1FA2"
+        style.stroke-dash: 3
+      }
+      plugins -> impl_worker: "← injected: migration rules, additive-first pattern" {
+        style.stroke: "#7B1FA2"
+        style.stroke-dash: 3
+      }
+      impl_worker -> fs: "EDIT schema.prisma — add avatar column"
+      impl_worker.write_hook -> plugins: "→ auto-format + comment-checker fire" {
+        style.stroke: "#7B1FA2"
+        style.stroke-dash: 3
+      }
+      impl_worker -> git: "git add schema.prisma && git commit"
+      git -> hooks: "trigger pre-commit"
+      hooks -> hooks: "lint-structure.sh (staged files)"
+      hooks -> hooks: "test-related.sh (related tests)"
+      hooks -> git: "hooks passed ✓" {style.stroke: "#4CAF50"}
+      impl_worker -> validator: "task(): validate task 1 against spec"
+      validator -> fs: "read spec.md FIRST (before code)"
+      validator -> fs: "read schema.prisma (modified)"
+      validator -> impl_worker: "APPROVED ✓" {style.stroke: "#4CAF50"}
+    }
+
+    task2: "Task 2: Upload API Route" {
+      style.fill: "#A5D6A7"
+      style.bold: true
+
+      impl_worker -> fs: "READ app/api/profile/avatar/route.ts"
+      impl_worker.read_hook2 -> plugins: "→ skill-inject: api-route-creation SKILL.md" {
+        style.stroke: "#7B1FA2"
+        style.stroke-dash: 3
+      }
+      impl_worker.carl -> plugins: "→ CARL: injects auth principle + upload domain doc" {
+        style.stroke: "#E65100"
+        style.stroke-dash: 3
+      }
+      plugins -> impl_worker: "← injected: route handler structure, auth checks, validation" {
+        style.stroke: "#7B1FA2"
+        style.stroke-dash: 3
+      }
+      impl_worker -> fs: "WRITE route.ts — upload handler with validation"
+      impl_worker -> git: "git add route.ts && git commit"
+      git -> hooks: "trigger pre-commit"
+      hooks -> git: "hooks passed ✓" {style.stroke: "#4CAF50"}
+      impl_worker -> validator: "task(): validate task 2 against spec"
+      validator -> fs: "read spec.md, then read route.ts"
+      validator -> impl_worker: "APPROVED_WITH_NOTES: consider CDN for large files" {style.stroke: "#FF9800"}
+    }
+
+    impl_worker -> implementer: "wave 1 complete (both tasks)" {
+      style.stroke: "#4CAF50"
+    }
+  }
+
+  wave2: "Wave 2 — Sequential Task" {
+    style.fill: "#C8E6C9"
+    style.bold: true
+
+    implementer -> fs: "READ app/profile/page.tsx"
+    implementer.page_skill -> plugins: "→ skill-inject: page-creation SKILL.md" {
+      style.stroke: "#7B1FA2"
+      style.stroke-dash: 3
+    }
+    implementer -> fs: "EDIT page.tsx — add avatar upload form"
+    implementer -> git: "git commit — task 3"
+    git -> hooks: "trigger pre-commit"
+    hooks -> git: "hooks passed ✓" {style.stroke: "#4CAF50"}
+    implementer -> validator: "task(): validate task 3"
+    validator -> implementer: "APPROVED ✓" {style.stroke: "#4CAF50"}
+  }
+
+  wave3: "Wave 3 — Tests" {
+    style.fill: "#C8E6C9"
+    style.bold: true
+
+    implementer -> fs: "READ avatar.test.ts (new file)"
+    implementer.test_skill -> plugins: "→ skill-inject: test-writing SKILL.md" {
+      style.stroke: "#7B1FA2"
+      style.stroke-dash: 3
+    }
+    implementer -> fs: "WRITE avatar.test.ts — upload success, validation errors, auth failure"
+    implementer -> git: "git commit — task 4"
+    git -> hooks: "trigger pre-commit"
+    hooks -> hooks: "test-related.sh runs new tests"
+    hooks -> git: "hooks passed ✓" {style.stroke: "#4CAF50"}
+    implementer -> validator: "task(): validate task 4"
+    validator -> implementer: "APPROVED ✓" {style.stroke: "#4CAF50"}
+  }
+
+  implementer -> fs: "update execution-state.md — all tasks DONE"
+  implementer -> dev: "Task-level implementation complete. Run /j.check"
+}
+
+# ═══ CHECK PHASE ═══
+check_phase: "Phase 4 — /j.check" {
+  style.fill: "#FCE4EC"
+  style.stroke: "#E91E63"
+  style.bold: true
+  style.font-size: 16
+
+  dev -> hooks: "/j.check → runs check-all.sh"
+  hooks -> hooks: "typecheck (tsc / mypy / go vet)"
+  hooks -> hooks: "full lint (eslint / ruff / golangci-lint)"
+  hooks -> hooks: "full test suite (jest / pytest / go test)"
+  hooks -> dev: "all green ✓" {style.stroke: "#4CAF50"}
+}
+
+# ═══ UNIFY PHASE ═══
+unify_phase: "Phase 5 — /j.unify" {
+  style.fill: "#EDE7F6"
+  style.stroke: "#673AB7"
+  style.bold: true
+  style.font-size: 16
+
+  dev -> unify: "/j.unify"
+  unify -> fs: "read plan.md + git diff main...HEAD"
+  unify -> unify: "reconcile: all 4 tasks DONE"
+  unify -> fs: "read validator-work.md (NOTE: CDN suggestion)"
+  unify -> fs: "append to persistent-context.md"
+  unify -> fs: "update docs/domain/ with new avatar behavior"
+  unify -> git: "git merge feature/task-1 --no-ff"
+  unify -> git: "git merge feature/task-2 --no-ff"
+  unify -> git: "git worktree remove worktrees/task-1"
+  unify -> git: "git worktree remove worktrees/task-2"
+  unify -> git: "git commit — docs update"
+  unify -> git: "gh pr create --title 'feat(profile): add avatar upload'"
+  unify -> dev: "PR created ✓ Ready for human review"
+}

@@ -9,6 +9,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs"
 import path from "path"
 import { type ModelTier, selectBestModels } from "./models.js"
 import { discoverAvailableModels } from "./discovery.js"
+import type { ProjectType } from "./project-types.js"
 
 export interface JuninhoConfig {
   /** Model ID for strong-tier agents (planner, spec-writer) */
@@ -17,6 +18,10 @@ export interface JuninhoConfig {
   medium: string
   /** Model ID for weak-tier agents (explore, librarian) */
   weak: string
+  /** Detected or user-selected project type */
+  projectType?: ProjectType
+  /** Whether the java project uses Kotlin */
+  isKotlin?: boolean
 }
 
 const CONFIG_FILENAME = "juninho-config.json"
@@ -36,7 +41,13 @@ export function loadConfig(projectDir: string): JuninhoConfig | null {
   try {
     const data = JSON.parse(readFileSync(p, "utf-8"))
     if (data.strong && data.medium && data.weak) {
-      return { strong: data.strong, medium: data.medium, weak: data.weak }
+      return {
+        strong: data.strong,
+        medium: data.medium,
+        weak: data.weak,
+        projectType: data.projectType,
+        isKotlin: data.isKotlin,
+      }
     }
     return null
   } catch {

@@ -1,14 +1,19 @@
 import { writeFileSync } from "fs"
 import path from "path"
+import type { ProjectType } from "../project-types.js"
 
-export function writePlugins(projectDir: string): void {
+export function writePlugins(
+  projectDir: string,
+  projectType: ProjectType = "node-nextjs",
+  isKotlin: boolean = false,
+): void {
   const pluginsDir = path.join(projectDir, ".opencode", "plugins")
 
   writeFileSync(path.join(pluginsDir, "j.env-protection.ts"), ENV_PROTECTION)
   writeFileSync(path.join(pluginsDir, "j.auto-format.ts"), AUTO_FORMAT)
   writeFileSync(path.join(pluginsDir, "j.plan-autoload.ts"), PLAN_AUTOLOAD)
   writeFileSync(path.join(pluginsDir, "j.carl-inject.ts"), CARL_INJECT)
-  writeFileSync(path.join(pluginsDir, "j.skill-inject.ts"), SKILL_INJECT)
+  writeFileSync(path.join(pluginsDir, "j.skill-inject.ts"), skillInject(projectType, isKotlin))
   writeFileSync(path.join(pluginsDir, "j.intent-gate.ts"), INTENT_GATE)
   writeFileSync(path.join(pluginsDir, "j.todo-enforcer.ts"), TODO_ENFORCER)
   writeFileSync(path.join(pluginsDir, "j.comment-checker.ts"), COMMENT_CHECKER)
@@ -16,6 +21,12 @@ export function writePlugins(projectDir: string): void {
   writeFileSync(path.join(pluginsDir, "j.hashline-edit.ts"), HASHLINE_EDIT)
   writeFileSync(path.join(pluginsDir, "j.directory-agents-injector.ts"), DIR_AGENTS_INJECTOR)
   writeFileSync(path.join(pluginsDir, "j.memory.ts"), MEMORY)
+
+  // Write initial skill-map.json for dynamic extension by /j.finish-setup
+  writeFileSync(
+    path.join(projectDir, ".opencode", "state", "skill-map.json"),
+    JSON.stringify(getBaseSkillMap(projectType, isKotlin), null, 2) + "\n",
+  )
 }
 
 // ─── Env Protection ──────────────────────────────────────────────────────────
@@ -486,74 +497,145 @@ export default (async ({ directory }: { directory: string }) => {
 }) satisfies Plugin
 `
 
-// ─── Skill Inject ────────────────────────────────────────────────────────────
+// ─── Skill Inject (reads from skill-map.json for dynamic extension) ─────────
 
-const SKILL_INJECT = `import type { Plugin } from "@opencode-ai/plugin"
-import { existsSync, readFileSync } from "fs"
-import path from "path"
+function getBaseSkillMap(
+  projectType: ProjectType,
+  isKotlin: boolean,
+): Array<{ pattern: string; skill: string }> {
+  // Universal patterns (all types)
+  const universal = [
+    { pattern: "(^|\\/)AGENTS\\.md$", skill: "j.agents-md-writing" },
+    { pattern: "docs\\/domain\\/.*\\.md$", skill: "j.domain-doc-writing" },
+    { pattern: "docs\\/principles\\/.*(?:\\.md|manifest)$", skill: "j.principle-doc-writing" },
+    { pattern: "(^|\\/)(\\.opencode\\/scripts|scripts)\\/.*\\.sh$", skill: "j.shell-script-writing" },
+    { pattern: "(^|\\/)pre-commit$", skill: "j.shell-script-writing" },
+  ]
 
-// Injects skill instructions via tool.execute.after on Read + Write.
-// Read: full skill content when reading a file matching a pattern (agent
-//       sees instructions BEFORE creating or editing matching artifacts).
-// Write: short reminder after writing a matching file.
-// This is Tier 3 of the context architecture.
-
-const SKILL_MAP: Array<{ pattern: RegExp; skill: string }> = [
-  { pattern: /\\.test\\.(ts|tsx|js|jsx)$/, skill: "j.test-writing" },
-  { pattern: /app\\/.*\\/page\\.(tsx|jsx)$/, skill: "j.page-creation" },
-  { pattern: /app\\/api\\/.*\\.(ts|js)$/, skill: "j.api-route-creation" },
-  { pattern: /actions\\.(ts|js)$/, skill: "j.server-action-creation" },
-  { pattern: /schema\\.prisma$/, skill: "j.schema-migration" },
-  { pattern: /(^|\\/)AGENTS\\.md$/, skill: "j.agents-md-writing" },
-  { pattern: /docs\\/domain\\/.*\\.md$/, skill: "j.domain-doc-writing" },
-  { pattern: /docs\\/principles\\/.*(?:\\.md|manifest)$/, skill: "j.principle-doc-writing" },
-  { pattern: /(^|\\/)(\\.opencode\\/scripts|scripts)\\/.*\\.sh$/, skill: "j.shell-script-writing" },
-  { pattern: /(^|\\/)pre-commit$/, skill: "j.shell-script-writing" },
-]
-
-export default (async ({ directory }: { directory: string }) => {
-  const injectedSkills = new Set<string>()
-
-  return {
-    "tool.execute.after": async (
-      input: { tool: string; sessionID: string; callID: string; args: any },
-      output: { title: string; output: string; metadata: any }
-    ) => {
-      const filePath: string = input.args?.path ?? input.args?.file_path ?? ""
-      if (!filePath) return
-
-      const match = SKILL_MAP.find(({ pattern }) => pattern.test(filePath))
-      if (!match) return
-
-      const key = \`\${input.sessionID}:\${match.skill}\`
-
-      if (input.tool === "Read") {
-        // Full injection on Read — agent sees skill instructions before writing
-        if (injectedSkills.has(key)) return
-        injectedSkills.add(key)
-
-        const skillPath = path.join(directory, ".opencode", "skills", match.skill, "SKILL.md")
-        if (!existsSync(skillPath)) return
-
-        const skillContent = readFileSync(skillPath, "utf-8")
-        output.output +=
-          \`\\n\\n[skill-inject] Skill activated for \${match.skill}:\\n\\n\${skillContent}\`
-      } else if (["Write", "Edit", "MultiEdit"].includes(input.tool)) {
-        // Short reminder on Write — only if skill was never injected via Read
-        if (injectedSkills.has(key)) return
-
-        const skillPath = path.join(directory, ".opencode", "skills", match.skill, "SKILL.md")
-        if (!existsSync(skillPath)) return
-
-        injectedSkills.add(key)
-        output.output +=
-          \`\\n\\n[skill-inject] IMPORTANT: Skill "\${match.skill}" exists for this file type. \` +
-          \`Read the matching file first to receive full skill instructions.\`
-      }
-    },
+  if (projectType === "java" && isKotlin) {
+    return [
+      { pattern: "Test\\.kt$", skill: "j.test-writing" },
+      { pattern: "Tests\\.kt$", skill: "j.test-writing" },
+      { pattern: "IT\\.kt$", skill: "j.test-writing" },
+      { pattern: "Test\\.java$", skill: "j.test-writing" },
+      ...universal,
+    ]
   }
-}) satisfies Plugin
-`
+
+  switch (projectType) {
+    case "node-nextjs":
+      return [
+        { pattern: "\\.test\\.(ts|tsx|js|jsx)$", skill: "j.test-writing" },
+        { pattern: "\\.spec\\.(ts|tsx|js|jsx)$", skill: "j.test-writing" },
+        { pattern: "app\\/.*\\/page\\.(tsx|jsx)$", skill: "j.page-creation" },
+        { pattern: "app\\/api\\/.*\\.(ts|js)$", skill: "j.api-route-creation" },
+        { pattern: "actions\\.(ts|js)$", skill: "j.server-action-creation" },
+        { pattern: "schema\\.prisma$", skill: "j.schema-migration" },
+        ...universal,
+      ]
+    case "node-generic":
+      return [
+        { pattern: "\\.test\\.(ts|tsx|js|jsx)$", skill: "j.test-writing" },
+        { pattern: "\\.spec\\.(ts|tsx|js|jsx)$", skill: "j.test-writing" },
+        ...universal,
+      ]
+    case "python":
+      return [
+        { pattern: "test_.*\\.py$", skill: "j.test-writing" },
+        { pattern: ".*_test\\.py$", skill: "j.test-writing" },
+        ...universal,
+      ]
+    case "go":
+      return [
+        { pattern: "_test\\.go$", skill: "j.test-writing" },
+        ...universal,
+      ]
+    case "java":
+      return [
+        { pattern: "Test\\.java$", skill: "j.test-writing" },
+        { pattern: "Tests\\.java$", skill: "j.test-writing" },
+        { pattern: "IT\\.java$", skill: "j.test-writing" },
+        ...universal,
+      ]
+    case "generic":
+    default:
+      return [...universal]
+  }
+}
+
+function skillInject(projectType: ProjectType, isKotlin: boolean): string {
+  const fallbackJson = JSON.stringify(getBaseSkillMap(projectType, isKotlin))
+
+  // Build the plugin source as a plain string to avoid template escaping issues
+  const lines = [
+    'import type { Plugin } from "@opencode-ai/plugin"',
+    'import { existsSync, readFileSync } from "fs"',
+    'import path from "path"',
+    '',
+    '// Injects skill instructions via tool.execute.after on Read + Write.',
+    '// SKILL_MAP is loaded from .opencode/state/skill-map.json for dynamic',
+    '// extension by /j.finish-setup. Falls back to hardcoded base patterns.',
+    '',
+    'interface SkillMapEntry { pattern: string; skill: string }',
+    '',
+    'function loadSkillMap(directory: string): Array<{ pattern: RegExp; skill: string }> {',
+    '  const mapPath = path.join(directory, ".opencode", "state", "skill-map.json")',
+    '  let entries: SkillMapEntry[] = []',
+    '',
+    '  if (existsSync(mapPath)) {',
+    '    try { entries = JSON.parse(readFileSync(mapPath, "utf-8")) } catch { entries = [] }',
+    '  }',
+    '',
+    `  if (entries.length === 0) { entries = ${fallbackJson} }`,
+    '',
+    '  return entries.map((e) => ({ pattern: new RegExp(e.pattern), skill: e.skill }))',
+    '}',
+    '',
+    'export default (async ({ directory }: { directory: string }) => {',
+    '  const injectedSkills = new Set<string>()',
+    '  const skillMap = loadSkillMap(directory)',
+    '',
+    '  return {',
+    '    "tool.execute.after": async (',
+    '      input: { tool: string; sessionID: string; callID: string; args: any },',
+    '      output: { title: string; output: string; metadata: any }',
+    '    ) => {',
+    '      const filePath: string = input.args?.path ?? input.args?.file_path ?? ""',
+    '      if (!filePath) return',
+    '',
+    '      const match = skillMap.find(({ pattern }) => pattern.test(filePath))',
+    '      if (!match) return',
+    '',
+    '      const key = `${input.sessionID}:${match.skill}`',
+    '',
+    '      if (input.tool === "Read") {',
+    '        if (injectedSkills.has(key)) return',
+    '        injectedSkills.add(key)',
+    '',
+    '        const skillPath = path.join(directory, ".opencode", "skills", match.skill, "SKILL.md")',
+    '        if (!existsSync(skillPath)) return',
+    '',
+    '        const skillContent = readFileSync(skillPath, "utf-8")',
+    '        output.output +=',
+    '          `\\n\\n[skill-inject] Skill activated for ${match.skill}:\\n\\n${skillContent}`',
+    '      } else if (["Write", "Edit", "MultiEdit"].includes(input.tool)) {',
+    '        if (injectedSkills.has(key)) return',
+    '',
+    '        const skillPath = path.join(directory, ".opencode", "skills", match.skill, "SKILL.md")',
+    '        if (!existsSync(skillPath)) return',
+    '',
+    '        injectedSkills.add(key)',
+    '        output.output +=',
+    '          `\\n\\n[skill-inject] IMPORTANT: Skill "${match.skill}" exists for this file type. ` +',
+    '          `Read the matching file first to receive full skill instructions.`',
+    '      }',
+    '    },',
+    '  }',
+    '}) satisfies Plugin',
+  ]
+
+  return lines.join('\n') + '\n'
+}
 
 // ─── Intent Gate ─────────────────────────────────────────────────────────────
 

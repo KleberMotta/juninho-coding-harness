@@ -1,23 +1,60 @@
-import { writeFileSync } from "fs"
+import { writeFileSync, mkdirSync, existsSync } from "fs"
 import path from "path"
+import type { ProjectType } from "../project-types.js"
+import { PROJECT_TYPE_REGISTRY } from "../project-types.js"
 
-export function writeSkills(projectDir: string): void {
+export function writeSkills(
+  projectDir: string,
+  projectType: ProjectType = "node-nextjs",
+  isKotlin: boolean = false,
+): void {
   const skillsDir = path.join(projectDir, ".opencode", "skills")
+  const config = PROJECT_TYPE_REGISTRY[projectType]
 
-  writeFileSync(path.join(skillsDir, "j.test-writing", "SKILL.md"), TEST_WRITING)
-  writeFileSync(path.join(skillsDir, "j.page-creation", "SKILL.md"), PAGE_CREATION)
-  writeFileSync(path.join(skillsDir, "j.api-route-creation", "SKILL.md"), API_ROUTE_CREATION)
-  writeFileSync(path.join(skillsDir, "j.server-action-creation", "SKILL.md"), SERVER_ACTION_CREATION)
-  writeFileSync(path.join(skillsDir, "j.schema-migration", "SKILL.md"), SCHEMA_MIGRATION)
-  writeFileSync(path.join(skillsDir, "j.agents-md-writing", "SKILL.md"), AGENTS_MD_WRITING)
-  writeFileSync(path.join(skillsDir, "j.domain-doc-writing", "SKILL.md"), DOMAIN_DOC_WRITING)
-  writeFileSync(path.join(skillsDir, "j.principle-doc-writing", "SKILL.md"), PRINCIPLE_DOC_WRITING)
-  writeFileSync(path.join(skillsDir, "j.shell-script-writing", "SKILL.md"), SHELL_SCRIPT_WRITING)
+  // Create skill directories and write only the skills for this project type
+  const skillWriters: Record<string, () => string> = {
+    "j.test-writing": () => testWriting(projectType, isKotlin),
+    "j.page-creation": () => PAGE_CREATION,
+    "j.api-route-creation": () => API_ROUTE_CREATION,
+    "j.server-action-creation": () => SERVER_ACTION_CREATION,
+    "j.schema-migration": () => SCHEMA_MIGRATION,
+    "j.agents-md-writing": () => AGENTS_MD_WRITING,
+    "j.domain-doc-writing": () => DOMAIN_DOC_WRITING,
+    "j.principle-doc-writing": () => PRINCIPLE_DOC_WRITING,
+    "j.shell-script-writing": () => SHELL_SCRIPT_WRITING,
+  }
+
+  for (const skill of config.skills) {
+    const writer = skillWriters[skill]
+    if (!writer) continue
+
+    const skillDir = path.join(skillsDir, skill)
+    if (!existsSync(skillDir)) {
+      mkdirSync(skillDir, { recursive: true })
+    }
+    writeFileSync(path.join(skillDir, "SKILL.md"), writer())
+  }
 }
 
-// ─── Test Writing ────────────────────────────────────────────────────────────
+// ─── Test Writing (parameterized by type) ──────────────────────────────────
 
-const TEST_WRITING = `---
+function testWriting(projectType: ProjectType, isKotlin: boolean): string {
+  switch (projectType) {
+    case "node-nextjs":
+    case "node-generic":
+      return TEST_WRITING_NODE
+    case "python":
+      return TEST_WRITING_PYTHON
+    case "go":
+      return TEST_WRITING_GO
+    case "java":
+      return isKotlin ? TEST_WRITING_KOTLIN : TEST_WRITING_JAVA
+    case "generic":
+      return TEST_WRITING_GENERIC
+  }
+}
+
+const TEST_WRITING_NODE = `---
 name: j.test-writing
 description: Write focused unit and integration tests following project conventions
 # Optional: uncomment to enable Playwright MCP for E2E tests
@@ -95,7 +132,498 @@ it("should handle async operation", async () => {
 - Tests that depend on order of execution
 `
 
-// ─── Page Creation ────────────────────────────────────────────────────────────
+const TEST_WRITING_PYTHON = `---
+name: j.test-writing
+description: Write focused unit and integration tests using pytest
+---
+
+# Skill: Test Writing (Python)
+
+## When this skill activates
+Writing or editing \`test_*.py\` or \`*_test.py\` files.
+
+## Required Steps
+
+### 1. Read the implementation first
+Before writing any test, read the file being tested. Understand:
+- What it does (not what you think it does)
+- Its dependencies and side effects
+- Error cases and edge conditions
+
+### 2. Test structure
+Follow the AAA pattern with pytest:
+\`\`\`python
+class TestFunctionName:
+    """Tests for function_name."""
+
+    def test_happy_path(self):
+        # Arrange
+        input_data = ...
+
+        # Act
+        result = function_name(input_data)
+
+        # Assert
+        assert result == expected
+
+    def test_when_invalid_input(self):
+        with pytest.raises(ValueError, match="specific message"):
+            function_name(invalid_input)
+\`\`\`
+
+Or functional style:
+\`\`\`python
+def test_function_does_expected_thing():
+    # Arrange
+    input_data = ...
+
+    # Act
+    result = function_name(input_data)
+
+    # Assert
+    assert result == expected
+\`\`\`
+
+### 3. Coverage requirements
+- Happy path: at least 1 test
+- Error cases: test each distinct error path with \`pytest.raises\`
+- Edge cases: empty inputs, boundary values, None
+- Prefer tests related to the changed files before running the full suite
+
+### 4. Mock strategy
+- Use \`unittest.mock.patch\` or \`pytest-mock\` fixtures
+- Mock external dependencies (APIs, DB, file system)
+- Do NOT mock the module under test
+\`\`\`python
+from unittest.mock import patch, MagicMock
+
+def test_with_mock(mocker):
+    mock_service = mocker.patch("module.ExternalService")
+    mock_service.return_value.fetch.return_value = {"data": "value"}
+
+    result = my_function()
+    assert result == expected
+\`\`\`
+
+### 5. Fixtures
+Use pytest fixtures for reusable setup:
+\`\`\`python
+@pytest.fixture
+def sample_user():
+    return User(name="Test", email="test@example.com")
+
+def test_user_display(sample_user):
+    assert sample_user.display_name == "Test"
+\`\`\`
+
+### 6. Naming conventions
+- File: \`test_{module}.py\` or \`{module}_test.py\`
+- Class: \`TestClassName\`
+- Function: \`test_{what_it_does}\` or \`test_when_{condition}_then_{outcome}\`
+
+## Anti-patterns to avoid
+- \`assert True\` — meaningless assertion
+- Testing private methods (\`_method\`) directly
+- Tests that depend on execution order
+- Mocking the module under test
+- Using \`time.sleep\` in tests
+`
+
+const TEST_WRITING_GO = `---
+name: j.test-writing
+description: Write focused unit and integration tests using Go testing
+---
+
+# Skill: Test Writing (Go)
+
+## When this skill activates
+Writing or editing \`*_test.go\` files.
+
+## Required Steps
+
+### 1. Read the implementation first
+Before writing any test, read the file being tested. Understand:
+- What it does (not what you think it does)
+- Its dependencies and side effects
+- Error cases and edge conditions
+
+### 2. Test structure
+Use table-driven tests with \`t.Run\`:
+\`\`\`go
+func TestFunctionName(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    InputType
+        expected OutputType
+        wantErr  bool
+    }{
+        {
+            name:     "happy path",
+            input:    validInput,
+            expected: expectedOutput,
+        },
+        {
+            name:    "invalid input returns error",
+            input:   invalidInput,
+            wantErr: true,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result, err := FunctionName(tt.input)
+
+            if tt.wantErr {
+                if err == nil {
+                    t.Fatal("expected error, got nil")
+                }
+                return
+            }
+            if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+            }
+            if result != tt.expected {
+                t.Errorf("got %v, want %v", result, tt.expected)
+            }
+        })
+    }
+}
+\`\`\`
+
+### 3. Coverage requirements
+- Happy path: at least 1 test case
+- Error cases: test each distinct error path
+- Edge cases: nil inputs, zero values, empty slices
+- Use \`t.Parallel()\` for independent subtests
+
+### 4. Mock strategy
+- Use interfaces for dependency injection
+- Create mock implementations in test files
+- For HTTP, use \`httptest.NewServer\`
+- For DB, use test containers or in-memory implementations
+
+### 5. Test helpers
+\`\`\`go
+func setupTestDB(t *testing.T) *DB {
+    t.Helper()
+    db := NewTestDB()
+    t.Cleanup(func() { db.Close() })
+    return db
+}
+\`\`\`
+
+### 6. Naming conventions
+- File: \`{package}_test.go\` in the same package
+- Function: \`TestFunctionName\`, \`TestType_Method\`
+- Subtests: descriptive names in \`t.Run("when condition", ...)\`
+
+## Anti-patterns to avoid
+- Using \`t.Log\` instead of assertions
+- Testing unexported functions from external packages
+- Using global state between tests
+- Not using \`t.Helper()\` in helper functions
+`
+
+const TEST_WRITING_JAVA = `---
+name: j.test-writing
+description: Write focused unit and integration tests using JUnit 5
+---
+
+# Skill: Test Writing (Java/JUnit 5)
+
+## When this skill activates
+Writing or editing \`*Test.java\`, \`*Tests.java\`, or \`*IT.java\` files.
+
+## Required Steps
+
+### 1. Read the implementation first
+Before writing any test, read the file being tested. Understand:
+- What it does (not what you think it does)
+- Its dependencies and side effects
+- Error cases and edge conditions
+
+### 2. Test structure
+Follow the AAA pattern with JUnit 5:
+\`\`\`java
+@DisplayName("FunctionName")
+class FunctionNameTest {
+
+    @Nested
+    @DisplayName("when valid input")
+    class WhenValidInput {
+
+        @Test
+        @DisplayName("should return expected result")
+        void shouldReturnExpectedResult() {
+            // Arrange
+            var input = createValidInput();
+
+            // Act
+            var result = functionName(input);
+
+            // Assert
+            assertThat(result).isEqualTo(expected);
+        }
+    }
+
+    @Nested
+    @DisplayName("when invalid input")
+    class WhenInvalidInput {
+
+        @Test
+        @DisplayName("should throw IllegalArgumentException")
+        void shouldThrowException() {
+            assertThatThrownBy(() -> functionName(invalidInput))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("specific message");
+        }
+    }
+}
+\`\`\`
+
+### 3. Coverage requirements
+- Happy path: at least 1 test
+- Error cases: test each distinct error path
+- Edge cases: null inputs, empty collections, boundary values
+- Use \`@ParameterizedTest\` for multiple inputs
+
+### 4. Mock strategy (Mockito)
+- Mock external dependencies
+- Do NOT mock the class under test
+\`\`\`java
+@ExtendWith(MockitoExtension.class)
+class ServiceTest {
+
+    @Mock
+    private Repository repository;
+
+    @InjectMocks
+    private Service service;
+
+    @Test
+    void shouldReturnData() {
+        when(repository.findById(1L)).thenReturn(Optional.of(entity));
+
+        var result = service.getData(1L);
+
+        assertThat(result).isNotNull();
+        verify(repository).findById(1L);
+    }
+}
+\`\`\`
+
+### 5. Naming conventions
+- File: \`{ClassName}Test.java\` in \`src/test/java/\`
+- Class: \`{ClassName}Test\`
+- Method: \`should{ExpectedBehavior}\` or \`should{Action}When{Condition}\`
+- Use \`@DisplayName\` for readable test names
+
+## Anti-patterns to avoid
+- \`assertTrue(true)\` — meaningless assertion
+- Testing private methods via reflection
+- \`@SuppressWarnings\` in tests
+- Tests that depend on execution order
+- Not using \`@ExtendWith(MockitoExtension.class)\`
+`
+
+const TEST_WRITING_KOTLIN = `---
+name: j.test-writing
+description: Write focused unit and integration tests using JUnit 5 with Kotlin idioms
+---
+
+# Skill: Test Writing (Kotlin/JUnit 5)
+
+## When this skill activates
+Writing or editing \`*Test.kt\`, \`*Tests.kt\`, or \`*IT.kt\` files.
+
+## Required Steps
+
+### 1. Read the implementation first
+Before writing any test, read the file being tested. Understand:
+- What it does (not what you think it does)
+- Its dependencies and side effects
+- Error cases and edge conditions
+
+### 2. Test structure
+Follow the AAA pattern with JUnit 5 and Kotlin idioms:
+\`\`\`kotlin
+@DisplayName("FunctionName")
+class FunctionNameTest {
+
+    @Nested
+    @DisplayName("when valid input")
+    inner class WhenValidInput {
+
+        @Test
+        @DisplayName("should return expected result")
+        fun \`should return expected result\`() {
+            // Arrange
+            val input = createValidInput()
+
+            // Act
+            val result = functionName(input)
+
+            // Assert
+            assertThat(result).isEqualTo(expected)
+        }
+    }
+
+    @Nested
+    @DisplayName("when invalid input")
+    inner class WhenInvalidInput {
+
+        @Test
+        fun \`should throw IllegalArgumentException\`() {
+            assertThatThrownBy { functionName(invalidInput) }
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessageContaining("specific message")
+        }
+    }
+}
+\`\`\`
+
+### 3. Kotlin-specific patterns
+- Use backtick method names for readable test names: \`fun \\\`should do something\\\`()\`
+- Use \`assertThrows<ExceptionType>\` from JUnit 5 Kotlin extensions
+- Prefer \`shouldBe\`, \`shouldThrow\` if using Kotest assertions
+- Use data classes for test fixtures
+- Use \`@ParameterizedTest\` with \`@MethodSource\` for multiple inputs
+
+\`\`\`kotlin
+@ParameterizedTest
+@MethodSource("invalidInputs")
+fun \`should reject invalid input\`(input: String) {
+    assertThrows<ValidationException> {
+        validate(input)
+    }
+}
+
+companion object {
+    @JvmStatic
+    fun invalidInputs() = listOf("", " ", "invalid@chars")
+}
+\`\`\`
+
+### 4. Mock strategy (Mockito-Kotlin or MockK)
+\`\`\`kotlin
+// Using MockK (preferred for Kotlin)
+class ServiceTest {
+
+    private val repository = mockk<Repository>()
+    private val service = Service(repository)
+
+    @Test
+    fun \`should return data\`() {
+        every { repository.findById(1L) } returns Optional.of(entity)
+
+        val result = service.getData(1L)
+
+        assertThat(result).isNotNull
+        verify { repository.findById(1L) }
+    }
+}
+\`\`\`
+
+Or with Mockito-Kotlin:
+\`\`\`kotlin
+@ExtendWith(MockitoExtension::class)
+class ServiceTest {
+
+    @Mock
+    lateinit var repository: Repository
+
+    @InjectMocks
+    lateinit var service: Service
+
+    @Test
+    fun \`should return data\`() {
+        whenever(repository.findById(1L)).thenReturn(Optional.of(entity))
+
+        val result = service.getData(1L)
+
+        assertThat(result).isNotNull
+        verify(repository).findById(1L)
+    }
+}
+\`\`\`
+
+### 5. Spring Boot test patterns
+\`\`\`kotlin
+@SpringBootTest
+@ActiveProfiles("test")
+class IntegrationTest {
+
+    @Autowired
+    lateinit var service: MyService
+
+    @MockkBean  // or @MockBean for Mockito
+    lateinit var externalClient: ExternalClient
+
+    @Test
+    fun \`should integrate correctly\`() {
+        every { externalClient.fetch() } returns listOf(data)
+        val result = service.process()
+        assertThat(result).hasSize(1)
+    }
+}
+\`\`\`
+
+### 6. Naming conventions
+- File: \`{ClassName}Test.kt\` in \`src/test/kotlin/\`
+- Class: \`{ClassName}Test\`
+- Method: backtick names for readability
+- Use \`@DisplayName\` or \`@Nested\` for grouping
+
+## Anti-patterns to avoid
+- \`assertTrue(true)\` — meaningless assertion
+- Testing private methods via reflection
+- Not using \`inner class\` with \`@Nested\` (required in Kotlin)
+- Using Java-style mock setup instead of Kotlin DSL
+- Not cleaning up coroutine test scopes in coroutine tests
+- Ignoring \`runTest {}\` for suspend function tests
+`
+
+const TEST_WRITING_GENERIC = `---
+name: j.test-writing
+description: Write focused unit and integration tests following AAA pattern
+---
+
+# Skill: Test Writing (Generic)
+
+## When this skill activates
+Writing or editing test files in any language.
+
+## Required Steps
+
+### 1. Read the implementation first
+Before writing any test, read the file being tested.
+
+### 2. Test structure
+Follow the AAA (Arrange-Act-Assert) pattern:
+- **Arrange**: set up test data and dependencies
+- **Act**: call the function/method under test
+- **Assert**: verify the result matches expectations
+
+### 3. Coverage requirements
+- Happy path: at least 1 test
+- Error cases: test each distinct error path
+- Edge cases: empty inputs, boundary values, null/nil/None
+
+### 4. Mock strategy
+- Mock external dependencies (APIs, DB, file system)
+- Do NOT mock the module under test
+
+### 5. Naming conventions
+- Test names should describe the expected behavior
+- Group related tests logically
+
+## Anti-patterns to avoid
+- Meaningless assertions
+- Testing implementation details instead of behavior
+- Tests that depend on execution order
+`
+
+// ─── Non-test skills (unchanged) ─────────────────────────────────────────────
 
 const PAGE_CREATION = `---
 name: j.page-creation
@@ -176,8 +704,6 @@ Always create companion files:
 - Missing loading states
 - Not handling error boundaries
 `
-
-// ─── API Route Creation ───────────────────────────────────────────────────────
 
 const API_ROUTE_CREATION = `---
 name: j.api-route-creation
@@ -275,8 +801,6 @@ const CreateSchema = z.object({
 - Returning 200 for errors
 `
 
-// ─── Server Action Creation ───────────────────────────────────────────────────
-
 const SERVER_ACTION_CREATION = `---
 name: j.server-action-creation
 description: Create Next.js Server Actions with correct patterns
@@ -365,8 +889,6 @@ export function ExampleForm() {
 - Catching errors silently without logging
 - Forgetting to revalidate affected paths
 `
-
-// ─── Schema Migration ─────────────────────────────────────────────────────────
 
 const SCHEMA_MIGRATION = `---
 name: j.schema-migration
@@ -475,7 +997,7 @@ Write an agent-facing operating manual for the current directory only.
   - \`docs/principles/*\` = cross-cutting technical patterns
 
 ## Good patterns
-- Include exact commands such as \`npm test -- foo\` or \`./gradlew test --tests \"...\"\`
+- Include exact commands such as \`npm test -- foo\` or \`./gradlew test --tests "..."\`
 - Call out invariants, ownership boundaries, and high-blast-radius files
 - Mention generated files, migrations, or release steps when relevant
 

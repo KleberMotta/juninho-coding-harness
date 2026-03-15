@@ -1,0 +1,194 @@
+title: |md
+  # Sequence: Context Injection & Plugin Interception
+  How CARL, Skills, Context7, Context-Mode and plugins enrich every tool call
+| {
+  near: top-center
+  shape: text
+  style.font-size: 28
+}
+
+shape: sequence_diagram
+
+agent: "Any Agent\n(implementer,\nplanner, etc.)" {
+  style.fill: "#1B5E20"
+  style.font-color: "#FFF"
+}
+opencode: "OpenCode\nRuntime" {
+  style.fill: "#424242"
+  style.font-color: "#FFF"
+}
+agents_injector: "Tier 1\nAGENTS.md\nInjector" {
+  style.fill: "#1565C0"
+  style.font-color: "#FFF"
+}
+carl: "Tier 2\nCARL" {
+  style.fill: "#E65100"
+  style.font-color: "#FFF"
+}
+skill_inject: "Tier 3\nSkill Inject" {
+  style.fill: "#2E7D32"
+  style.font-color: "#FFF"
+}
+hashline: "Hashline\nPlugin" {
+  style.fill: "#C62828"
+  style.font-color: "#FFF"
+}
+autoformat: "Auto-format\nPlugin" {
+  style.fill: "#C62828"
+  style.font-color: "#FFF"
+}
+intent_gate: "Intent Gate\nPlugin" {
+  style.fill: "#7B1FA2"
+  style.font-color: "#FFF"
+}
+librarian: "@j.librarian\n(weak)" {
+  style.fill: "#78909C"
+  style.font-color: "#FFF"
+}
+context7: "Context7\nMCP" {
+  style.fill: "#00838F"
+  style.font-color: "#FFF"
+}
+context_mode: "Context-Mode\nMCP" {
+  style.fill: "#00695C"
+  style.font-color: "#FFF"
+}
+fs: "File System" {
+  style.fill: "#2E7D32"
+  style.font-color: "#FFF"
+}
+
+# ═══ READ FLOW ═══
+read_flow: "Read Tool Call — Plugin Interception Chain" {
+  style.fill: "#E3F2FD"
+  style.stroke: "#1565C0"
+  style.bold: true
+  style.font-size: 16
+
+  agent -> opencode: "Read(src/services/profile.test.ts)"
+  opencode -> fs: "read file content"
+  fs -> opencode: "raw file content" {style.stroke: "#4CAF50"}
+
+  tier1: "Tier 1 — Directory Context" {
+    style.fill: "#BBDEFB"
+    style.bold: true
+
+    opencode -> agents_injector: "intercept Read result"
+    agents_injector -> fs: "read root/AGENTS.md"
+    agents_injector -> fs: "read src/AGENTS.md"
+    agents_injector -> fs: "read src/services/AGENTS.md"
+    agents_injector -> opencode: "inject: stack rules, architecture, service invariants" {style.stroke: "#1565C0"}
+  }
+
+  tier2: "Tier 2 — CARL (Content-Aware Retrieval)" {
+    style.fill: "#FFE0B2"
+    style.bold: true
+
+    opencode -> carl: "intercept Read result"
+    carl -> carl: "extract keywords from file: 'profile', 'avatar', 'upload'"
+    carl -> fs: "read docs/principles/manifest — match 'profile' keywords"
+    carl -> fs: "read docs/domain/INDEX.md — match 'avatar' entry"
+    carl -> fs: "read matched docs/principles/auth-patterns.md"
+    carl -> fs: "read matched docs/domain/user-profile/avatar.md"
+    carl -> opencode: "inject: auth principle + avatar domain doc (≤8KB budget)" {style.stroke: "#E65100"}
+  }
+
+  tier3: "Tier 3 — Skill Injection" {
+    style.fill: "#C8E6C9"
+    style.bold: true
+
+    opencode -> skill_inject: "intercept Read result"
+    skill_inject -> fs: "read .opencode/state/skill-map.json"
+    skill_inject -> skill_inject: "match 'profile.test.ts' → pattern .test.(ts|tsx)"
+    skill_inject -> fs: "read .opencode/skills/j.test-writing/SKILL.md"
+    skill_inject -> opencode: "inject: test-writing skill (AAA pattern, coverage rules, mock strategy)" {style.stroke: "#2E7D32"}
+  }
+
+  hashline_tier: "Hashline Tagging" {
+    style.fill: "#FFCDD2"
+    style.bold: true
+
+    opencode -> hashline: "intercept Read result"
+    hashline -> hashline: "tag each line: 001#A4: import... 002#VK: describe(..."
+    hashline -> opencode: "inject: hashline-tagged content" {style.stroke: "#C62828"}
+  }
+
+  opencode -> agent: "ENRICHED response:\nraw content + AGENTS.md hierarchy\n+ auth principle + avatar domain doc\n+ test-writing SKILL.md\n+ hashline tags" {
+    style.stroke: "#F57F17"
+    style.stroke-width: 2
+    style.bold: true
+  }
+}
+
+# ═══ WRITE FLOW ═══
+write_flow: "Write/Edit Tool Call — Quality Enforcement" {
+  style.fill: "#FCE4EC"
+  style.stroke: "#C62828"
+  style.bold: true
+  style.font-size: 16
+
+  agent -> opencode: "Edit(src/services/profile.test.ts, old, new)"
+
+  opencode -> intent_gate: "intercept Edit"
+  intent_gate -> intent_gate: "check: is this file in current plan task scope?"
+  intent_gate -> opencode: "OK — file is in plan task 4 scope" {style.stroke: "#4CAF50"}
+
+  opencode -> fs: "apply edit to file"
+
+  opencode -> autoformat: "intercept post-Edit"
+  autoformat -> autoformat: "run prettier/black/gofmt on modified file"
+  autoformat -> fs: "write formatted content"
+  autoformat -> opencode: "formatted ✓" {style.stroke: "#4CAF50"}
+
+  opencode -> skill_inject: "intercept post-Edit"
+  skill_inject -> opencode: "re-inject test-writing SKILL.md for next interaction" {style.stroke: "#2E7D32"}
+
+  opencode -> agent: "Edit applied + formatted + skill context refreshed" {
+    style.stroke: "#F57F17"
+    style.stroke-width: 2
+  }
+}
+
+# ═══ EXTERNAL KNOWLEDGE ═══
+external_flow: "External Knowledge — @j.librarian + MCP" {
+  style.fill: "#E0F7FA"
+  style.stroke: "#00838F"
+  style.bold: true
+  style.font-size: 16
+
+  agent -> librarian: "task(bg): find sharp image processing docs"
+
+  librarian -> context7: "resolve_library_id('sharp')"
+  context7 -> librarian: "id: /npm/sharp" {style.stroke: "#4CAF50"}
+  librarian -> context7: "get_library_docs('/npm/sharp', topic='resize')"
+  context7 -> librarian: "official sharp resize API docs" {style.stroke: "#4CAF50"}
+
+  librarian -> context_mode: "search('image upload validation patterns')"
+  context_mode -> context_mode: "semantic search across project files"
+  context_mode -> librarian: "found: src/utils/file-validation.ts, existing patterns" {style.stroke: "#4CAF50"}
+
+  librarian -> agent: "report: sharp API (resize, toFormat), existing validation utils at src/utils/file-validation.ts" {
+    style.stroke: "#4CAF50"
+    style.stroke-width: 2
+  }
+}
+
+# ═══ COMPACTION ═══
+compaction_flow: "Context Window Compaction — Re-injection" {
+  style.fill: "#EDE7F6"
+  style.stroke: "#673AB7"
+  style.bold: true
+  style.font-size: 16
+
+  opencode -> opencode: "context window approaching limit → compact"
+  opencode -> carl: "re-inject: CARL scans active task keywords again"
+  carl -> opencode: "re-inject relevant principles + domain docs" {style.stroke: "#E65100"}
+  opencode -> skill_inject: "re-inject: skill for current file pattern"
+  skill_inject -> opencode: "re-inject SKILL.md" {style.stroke: "#2E7D32"}
+  opencode -> opencode: "j.todo-enforcer: re-inject incomplete tasks from execution-state"
+  opencode -> opencode: "j.memory: re-inject persistent-context.md"
+  opencode -> agent: "compacted context with all critical knowledge preserved" {
+    style.stroke: "#673AB7"
+    style.stroke-width: 2
+  }
+}

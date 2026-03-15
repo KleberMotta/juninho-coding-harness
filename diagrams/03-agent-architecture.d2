@@ -1,0 +1,273 @@
+direction: down
+
+title: |md
+  # Agent Architecture & Delegation
+  Model tiers, agent roles, and sub-agent spawning patterns
+| {
+  near: top-center
+  shape: text
+  style.font-size: 28
+}
+
+user: Developer {
+  shape: person
+  style.fill: "#4A90D9"
+  style.font-color: "#FFFFFF"
+  style.bold: true
+}
+
+# ═══ Commands → Agents ═══
+commands: "Slash Commands (Entry Points)" {
+  style.fill: "#ECEFF1"
+  style.stroke: "#607D8B"
+  style.border-radius: 12
+  style.bold: true
+  style.font-size: 16
+
+  spec: "/j.spec" {shape: step; style.fill: "#2196F3"; style.font-color: "#FFF"}
+  plan: "/j.plan" {shape: step; style.fill: "#FF9800"; style.font-color: "#FFF"}
+  implement: "/j.implement" {shape: step; style.fill: "#4CAF50"; style.font-color: "#FFF"}
+  check: "/j.check" {shape: step; style.fill: "#E91E63"; style.font-color: "#FFF"}
+  unify: "/j.unify" {shape: step; style.fill: "#673AB7"; style.font-color: "#FFF"}
+  pr_review: "/j.pr-review" {shape: step; style.fill: "#795548"; style.font-color: "#FFF"}
+  others: "/j.start-work\n/j.handoff\n/j.status\n/j.init-deep\n/j.finish-setup\n/j.ulw-loop" {shape: step; style.fill: "#90A4AE"; style.font-color: "#FFF"}
+}
+
+user -> commands: "invokes" {style.stroke-width: 2}
+
+# ═══ Strong Tier ═══
+strong: "Strong Model Agents (claude-opus-4.6)" {
+  style.fill: "#E3F2FD"
+  style.stroke: "#1565C0"
+  style.border-radius: 12
+  style.bold: true
+  style.font-size: 16
+
+  spec_writer: "@j.spec-writer" {
+    shape: hexagon
+    style.fill: "#1565C0"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  spec_desc: "5-phase interview\nSpec document authoring\nExplicit approval gate" {
+    shape: page
+    style.fill: "#BBDEFB"
+    style.font-size: 12
+  }
+
+  planner: "@j.planner" {
+    shape: hexagon
+    style.fill: "#1565C0"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  planner_desc: "3-phase planning\nMetis → Prometheus → Momus\nGoal-backward decomposition" {
+    shape: page
+    style.fill: "#BBDEFB"
+    style.font-size: 12
+  }
+
+  spec_writer -> spec_desc
+  planner -> planner_desc
+}
+
+# ═══ Medium Tier ═══
+medium: "Medium Model Agents (claude-sonnet-4.6)" {
+  style.fill: "#FFF3E0"
+  style.stroke: "#FF8F00"
+  style.border-radius: 12
+  style.bold: true
+  style.font-size: 16
+
+  implementer: "@j.implementer" {
+    shape: hexagon
+    style.fill: "#FF8F00"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  impl_desc: "READ → ACT → COMMIT → VALIDATE\nWave parallelism + git worktrees\nPre-commit hook enforcement" {
+    shape: page
+    style.fill: "#FFE0B2"
+    style.font-size: 12
+  }
+
+  validator_agent: "@j.validator" {
+    shape: hexagon
+    style.fill: "#FF8F00"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  val_desc: "Reads spec BEFORE code\nBLOCK / FIX / NOTE / APPROVED\nCan fix directly (FIX tier)" {
+    shape: page
+    style.fill: "#FFE0B2"
+    style.font-size: 12
+  }
+
+  plan_reviewer: "@j.plan-reviewer" {
+    shape: hexagon
+    style.fill: "#FF8F00"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  pr_desc: "Executability gate\nMax 3 issues per round\nApproval bias" {
+    shape: page
+    style.fill: "#FFE0B2"
+    style.font-size: 12
+  }
+
+  reviewer: "@j.reviewer" {
+    shape: hexagon
+    style.fill: "#FF8F00"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  rev_desc: "Read-only advisory\nPost-PR review\nLGTM / NEEDS_WORK" {
+    shape: page
+    style.fill: "#FFE0B2"
+    style.font-size: 12
+  }
+
+  unify_agent: "@j.unify" {
+    shape: hexagon
+    style.fill: "#FF8F00"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  unify_desc: "Reconcile delivery\nMerge worktrees\nUpdate docs + create PR" {
+    shape: page
+    style.fill: "#FFE0B2"
+    style.font-size: 12
+  }
+
+  implementer -> impl_desc
+  validator_agent -> val_desc
+  plan_reviewer -> pr_desc
+  reviewer -> rev_desc
+  unify_agent -> unify_desc
+}
+
+# ═══ Weak Tier ═══
+weak: "Weak Model Agents (claude-haiku-4.5)" {
+  style.fill: "#ECEFF1"
+  style.stroke: "#607D8B"
+  style.border-radius: 12
+  style.bold: true
+  style.font-size: 16
+
+  explore: "@j.explore" {
+    shape: hexagon
+    style.fill: "#78909C"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  explore_desc: "Read-only codebase research\nGlob, Grep, LSP, Read tools\nMaps files, patterns, constraints" {
+    shape: page
+    style.fill: "#CFD8DC"
+    style.font-size: 12
+  }
+
+  librarian: "@j.librarian" {
+    shape: hexagon
+    style.fill: "#78909C"
+    style.font-color: "#FFFFFF"
+    style.bold: true
+  }
+  librarian_desc: "External docs research\nContext7 + Context-Mode MCP\nWebFetch, WebSearch" {
+    shape: page
+    style.fill: "#CFD8DC"
+    style.font-size: 12
+  }
+
+  explore -> explore_desc
+  librarian -> librarian_desc
+}
+
+# ═══ Command → Agent links ═══
+commands.spec -> strong.spec_writer: "invokes" {style.stroke: "#1565C0"; style.stroke-width: 2}
+commands.plan -> strong.planner: "invokes" {style.stroke: "#1565C0"; style.stroke-width: 2}
+commands.implement -> medium.implementer: "invokes" {style.stroke: "#FF8F00"; style.stroke-width: 2}
+commands.unify -> medium.unify_agent: "invokes" {style.stroke: "#FF8F00"; style.stroke-width: 2}
+commands.pr_review -> medium.reviewer: "invokes" {style.stroke: "#FF8F00"; style.stroke-width: 2}
+
+# ═══ Sub-agent delegation ═══
+strong.spec_writer -> weak.explore: "task(bg)" {style.stroke-dash: 3; style.stroke: "#78909C"; style.stroke-width: 2}
+strong.spec_writer -> weak.librarian: "task(bg)" {style.stroke-dash: 3; style.stroke: "#78909C"; style.stroke-width: 2}
+strong.planner -> weak.explore: "task(bg)" {style.stroke-dash: 3; style.stroke: "#78909C"; style.stroke-width: 2}
+strong.planner -> weak.librarian: "task(bg)" {style.stroke-dash: 3; style.stroke: "#78909C"; style.stroke-width: 2}
+strong.planner -> medium.plan_reviewer: "task()" {style.stroke-dash: 3; style.stroke: "#FF8F00"; style.stroke-width: 2}
+medium.implementer -> medium.validator_agent: "task() per task" {style.stroke-dash: 3; style.stroke: "#FF8F00"; style.stroke-width: 2}
+medium.implementer -> medium.implementer: "task(bg)\nparallel worktrees" {style.stroke-dash: 3; style.stroke: "#FF8F00"; style.stroke-width: 2}
+
+# ═══ Infrastructure ═══
+infra: "Infrastructure Layer" {
+  style.fill: "#F3E5F5"
+  style.stroke: "#7B1FA2"
+  style.border-radius: 12
+  style.bold: true
+
+  scripts: "Support Scripts" {
+    style.fill: "#E1BEE7"
+    style.border-radius: 4
+
+    pre_commit: "pre-commit.sh" {shape: step; style.fill: "#CE93D8"}
+    lint: "lint-structure.sh" {shape: step; style.fill: "#CE93D8"}
+    test_r: "test-related.sh" {shape: step; style.fill: "#CE93D8"}
+    check: "check-all.sh" {shape: step; style.fill: "#CE93D8"}
+  }
+
+  tools: "Custom Tools" {
+    style.fill: "#E1BEE7"
+    style.border-radius: 4
+
+    fp: "find_pattern" {shape: step; style.fill: "#CE93D8"}
+    lsp: "LSP (diagnostics,\nrefs, symbols)" {shape: step; style.fill: "#CE93D8"}
+    ast: "ast_grep\n(structural search)" {shape: step; style.fill: "#CE93D8"}
+    nv: "next_version" {shape: step; style.fill: "#CE93D8"}
+  }
+
+  state: "State Files" {
+    style.fill: "#E1BEE7"
+    style.border-radius: 4
+
+    es: "execution-state.md" {shape: stored_data; style.fill: "#CE93D8"}
+    pc: "persistent-context.md" {shape: stored_data; style.fill: "#CE93D8"}
+    iw: "implementer-work.md" {shape: stored_data; style.fill: "#CE93D8"}
+    vw: "validator-work.md" {shape: stored_data; style.fill: "#CE93D8"}
+    sm: "skill-map.json" {shape: stored_data; style.fill: "#CE93D8"}
+  }
+
+  mcp: "MCP Servers" {
+    style.fill: "#E1BEE7"
+    style.border-radius: 4
+
+    ctx7: "Context7" {shape: cylinder; style.fill: "#00838F"; style.font-color: "#FFF"}
+    ctxm: "Context-Mode" {shape: cylinder; style.fill: "#00695C"; style.font-color: "#FFF"}
+  }
+}
+
+medium.implementer -> infra.scripts: "git commit\ntriggers" {style.stroke: "#7B1FA2"; style.stroke-width: 2}
+medium.implementer -> infra.tools: "uses" {style.stroke: "#7B1FA2"}
+medium.implementer -> infra.state: "reads/writes" {style.stroke: "#7B1FA2"}
+weak.explore -> infra.tools: "reads" {style.stroke: "#607D8B"}
+weak.librarian -> infra.mcp: "queries" {style.stroke: "#00838F"; style.stroke-width: 2}
+commands.check -> infra.scripts.check: "runs" {style.stroke: "#E91E63"; style.stroke-width: 2}
+
+# ═══ Output Artifacts ═══
+artifacts: "Output Artifacts" {
+  style.fill: "#E8F5E9"
+  style.stroke: "#2E7D32"
+  style.border-radius: 12
+  style.bold: true
+
+  spec_doc: "spec.md" {shape: document; style.fill: "#C8E6C9"}
+  plan_doc: "plan.md\nCONTEXT.md" {shape: document; style.fill: "#C8E6C9"}
+  code: "Committed\nCode" {shape: document; style.fill: "#C8E6C9"}
+  docs: "Domain\nDocs" {shape: document; style.fill: "#C8E6C9"}
+  pr: "Pull\nRequest" {shape: document; style.fill: "#A5D6A7"; style.bold: true}
+}
+
+strong.spec_writer -> artifacts.spec_doc: "writes" {style.stroke: "#2E7D32"}
+strong.planner -> artifacts.plan_doc: "writes" {style.stroke: "#2E7D32"}
+medium.implementer -> artifacts.code: "commits" {style.stroke: "#2E7D32"}
+medium.unify_agent -> artifacts.docs: "updates" {style.stroke: "#2E7D32"}
+medium.unify_agent -> artifacts.pr: "creates" {style.stroke: "#2E7D32"; style.stroke-width: 2}

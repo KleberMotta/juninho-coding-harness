@@ -1,0 +1,144 @@
+title: |md
+  # Sequence: /j.spec → /j.plan
+  Specification and Planning phases
+| {
+  near: top-center
+  shape: text
+  style.font-size: 28
+}
+
+shape: sequence_diagram
+
+dev: Developer {
+  shape: person
+  style.fill: "#4A90D9"
+}
+spec_writer: "@j.spec-writer\n(strong)" {
+  style.fill: "#1565C0"
+  style.font-color: "#FFF"
+}
+explore: "@j.explore\n(weak)" {
+  style.fill: "#78909C"
+  style.font-color: "#FFF"
+}
+librarian: "@j.librarian\n(weak)" {
+  style.fill: "#78909C"
+  style.font-color: "#FFF"
+}
+planner: "@j.planner\n(strong)" {
+  style.fill: "#E65100"
+  style.font-color: "#FFF"
+}
+plan_reviewer: "@j.plan-reviewer\n(medium)" {
+  style.fill: "#FF8F00"
+  style.font-color: "#FFF"
+}
+fs: "File System" {
+  style.fill: "#2E7D32"
+  style.font-color: "#FFF"
+}
+
+# ═══ SPEC PHASE ═══
+spec_phase: "Phase 1 — /j.spec <feature>" {
+  style.fill: "#E3F2FD"
+  style.stroke: "#1565C0"
+  style.bold: true
+  style.font-size: 16
+
+  dev -> spec_writer: "/j.spec \"user profile with avatar\""
+
+  spec_writer -> explore: "task(bg): scan codebase for profile implementations" {
+    style.stroke-dash: 3
+  }
+  spec_writer -> librarian: "task(bg): find file upload best practices" {
+    style.stroke-dash: 3
+  }
+
+  explore -> spec_writer: "report: found ProfileService.ts, UserModel.ts, existing upload utils" {
+    style.stroke-dash: 3
+    style.stroke: "#4CAF50"
+  }
+  librarian -> spec_writer: "report: S3 multipart upload, image validation patterns" {
+    style.stroke-dash: 3
+    style.stroke: "#4CAF50"
+  }
+
+  interview: "5-Phase Interview" {
+    style.fill: "#BBDEFB"
+    style.bold: true
+
+    spec_writer -> dev: "Phase 1 (Discovery): What user need does this solve?"
+    dev -> spec_writer: "Users want to personalize their profile with an avatar"
+    spec_writer -> dev: "Phase 2 (Requirements): Max file size? Allowed formats?"
+    dev -> spec_writer: "5MB max, JPEG/PNG/WebP"
+    spec_writer -> dev: "Phase 3 (Contract): POST /api/profile/avatar with multipart?"
+    dev -> spec_writer: "Yes, return { url, thumbnailUrl }"
+    spec_writer -> dev: "Phase 4 (Data): Add avatar column to User table?"
+    dev -> spec_writer: "Yes, nullable string for URL"
+    spec_writer -> dev: "Phase 5 (Review): Here is the complete spec. Approve? (yes/no)"
+    dev -> spec_writer: "yes"
+  }
+
+  spec_writer -> fs: "write docs/specs/user-profile-avatar/spec.md"
+  spec_writer -> dev: "Spec approved ✓ Run /j.plan to build execution plan"
+}
+
+# ═══ PLAN PHASE ═══
+plan_phase: "Phase 2 — /j.plan \"user profile avatar\"" {
+  style.fill: "#FFF3E0"
+  style.stroke: "#FF9800"
+  style.bold: true
+  style.font-size: 16
+
+  dev -> planner: "/j.plan \"user profile with avatar\""
+
+  metis: "Metis — Intent Analysis" {
+    style.fill: "#FFE0B2"
+    style.bold: true
+
+    planner -> planner: "classify: Feature (mid-size)"
+    planner -> explore: "task(bg): map affected files, test coverage" {
+      style.stroke-dash: 3
+    }
+    planner -> librarian: "task(bg): canonical avatar upload patterns, Next.js file handling" {
+      style.stroke-dash: 3
+    }
+    explore -> planner: "file map: 4 files to modify, 2 test files exist" {
+      style.stroke-dash: 3
+      style.stroke: "#4CAF50"
+    }
+    librarian -> planner: "patterns: presigned URLs, sharp for thumbnails" {
+      style.stroke-dash: 3
+      style.stroke: "#4CAF50"
+    }
+  }
+
+  prometheus: "Prometheus — Interview & Planning" {
+    style.fill: "#FFE0B2"
+    style.bold: true
+
+    planner -> dev: "Q1: Store avatar as file or reference to external CDN?"
+    dev -> planner: "Local storage for now, CDN later"
+    planner -> dev: "Q2: Generate thumbnails server-side or client-side?"
+    dev -> planner: "Server-side with sharp"
+    planner -> fs: "write docs/specs/user-profile-avatar/CONTEXT.md"
+    planner -> planner: "decompose into 4 tasks across 3 waves"
+    planner -> fs: "write docs/specs/user-profile-avatar/plan.md"
+  }
+
+  momus: "Momus — Executability Review (loop)" {
+    style.fill: "#FFE0B2"
+    style.bold: true
+
+    planner -> plan_reviewer: "task(): review plan for executability"
+    plan_reviewer -> plan_reviewer: "check file refs, task clarity, dependency ordering"
+    plan_reviewer -> planner: "OKAY — all tasks executable" {
+      style.stroke: "#4CAF50"
+    }
+  }
+
+  planner -> dev: "Plan summary: 4 tasks, 3 waves. Approve? (yes/no)"
+  dev -> planner: "yes"
+  planner -> fs: "write .opencode/state/.plan-ready"
+  planner -> dev: "Plan approved ✓ Run /j.implement to execute"
+}

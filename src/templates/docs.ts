@@ -1,6 +1,8 @@
 import { writeFileSync, readFileSync, existsSync } from "fs"
 import path from "path"
 import { DEFAULT_MODELS } from "../models.js"
+import type { ProjectType } from "../project-types.js"
+import { PROJECT_TYPE_REGISTRY } from "../project-types.js"
 
 export interface OpencodeModels {
   strong: string
@@ -8,8 +10,12 @@ export interface OpencodeModels {
   weak: string
 }
 
-export function writeDocs(projectDir: string): void {
-  writeFileSync(path.join(projectDir, "AGENTS.md"), AGENTS_MD)
+export function writeDocs(
+  projectDir: string,
+  projectType: ProjectType = "node-nextjs",
+  isKotlin: boolean = false,
+): void {
+  writeFileSync(path.join(projectDir, "AGENTS.md"), agentsMd(projectType, isKotlin))
   writeFileSync(path.join(projectDir, "docs", "domain", "INDEX.md"), DOMAIN_INDEX)
   writeFileSync(path.join(projectDir, "docs", "principles", "manifest"), MANIFEST)
   writeFileSync(path.join(projectDir, "docs", "principles", "auth-patterns.md"), AUTH_PATTERNS)
@@ -40,6 +46,11 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
       context7: {
         type: "local",
         command: ["npx", "-y", "@upstash/context7-mcp@latest"],
+      },
+      // context-mode provides intelligent context management for agent sessions.
+      "context-mode": {
+        type: "local",
+        command: ["npx", "-y", "context-mode@latest"],
       },
     },
     agent: {
@@ -175,11 +186,62 @@ function deepMerge(
   return result
 }
 
-// ─── AGENTS.md ────────────────────────────────────────────────────────────────
+// ─── AGENTS.md (parameterized by project type) ──────────────────────────────
 
-const AGENTS_MD = `# AGENTS.md
+function skillsTable(projectType: ProjectType, isKotlin: boolean): string {
+  const config = PROJECT_TYPE_REGISTRY[projectType]
+  const rows: string[] = []
+
+  const skillActivations: Record<string, { pattern: string; notes: string }> = {
+    "j.test-writing": getTestSkillRow(projectType, isKotlin),
+    "j.page-creation": { pattern: "`app/**/page.tsx`", notes: "Stack-specific; Next.js App Router only" },
+    "j.api-route-creation": { pattern: "`app/api/**/*.ts`", notes: "" },
+    "j.server-action-creation": { pattern: "`**/actions.ts`", notes: "Stack-specific; Next.js Server Actions only" },
+    "j.schema-migration": { pattern: "`schema.prisma`", notes: "" },
+    "j.agents-md-writing": { pattern: "`**/AGENTS.md`", notes: "Directory-local agent guidance" },
+    "j.domain-doc-writing": { pattern: "`docs/domain/**/*.md`", notes: "Business behavior and sync markers" },
+    "j.principle-doc-writing": { pattern: "`docs/principles/**`", notes: "Cross-cutting technical rules" },
+    "j.shell-script-writing": { pattern: "`.opencode/scripts/**/*.sh`, `scripts/**/*.sh`, hooks", notes: "Fast, safe automation scripts" },
+  }
+
+  for (const skill of config.skills) {
+    const info = skillActivations[skill]
+    if (!info) continue
+    rows.push(`| \`${skill}\` | ${info.pattern} | ${info.notes} |`)
+  }
+
+  return rows.join("\n")
+}
+
+function getTestSkillRow(projectType: ProjectType, isKotlin: boolean): { pattern: string; notes: string } {
+  if (projectType === "java" && isKotlin) {
+    return { pattern: "`*Test.kt`, `*Tests.kt`, `*Test.java`", notes: "Kotlin/JUnit 5 + MockK/Mockito-Kotlin" }
+  }
+  switch (projectType) {
+    case "node-nextjs":
+    case "node-generic":
+      return { pattern: "`*.test.ts`, `*.spec.ts`", notes: "Jest/Vitest AAA pattern" }
+    case "python":
+      return { pattern: "`test_*.py`, `*_test.py`", notes: "pytest + unittest.mock" }
+    case "go":
+      return { pattern: "`*_test.go`", notes: "table-driven tests with t.Run" }
+    case "java":
+      return { pattern: "`*Test.java`, `*Tests.java`", notes: "JUnit 5 + Mockito" }
+    case "generic":
+    default:
+      return { pattern: "test files", notes: "AAA pattern" }
+  }
+}
+
+function agentsMd(projectType: ProjectType, isKotlin: boolean): string {
+  const stackLabel = projectType === "java" && isKotlin ? "Java/Kotlin" : projectType
+  const skillCount = PROJECT_TYPE_REGISTRY[projectType].skills.length
+  const commandCount = 15 // 14 original + finish-setup
+
+  return `# AGENTS.md
 
 This project uses the **Agentic Coding Framework** v2.1 — installed by [juninho](https://github.com/KleberMotta/juninho).
+Project type: **${stackLabel}**
 
 ## Workflows
 
@@ -216,6 +278,7 @@ This project uses the **Agentic Coding Framework** v2.1 — installed by [juninh
 | \`/j.handoff\` | Prepare end-of-session handoff doc |
 | \`/j.init-deep\` | Generate hierarchical AGENTS.md + populate domain docs |
 | \`/j.ulw-loop\` | Maximum parallelism mode |
+| \`/j.finish-setup\` | Scan codebase, generate dynamic skills from file patterns, populate domain/principles docs |
 
 ## Agent Roster
 
@@ -254,7 +317,7 @@ Maps files, patterns, and constraints before the developer interview.
 
 ### @j.librarian
 External docs and OSS research. Spawned by planner Phase 1.
-Fetches official API docs via Context7 MCP.
+Fetches official API docs via Context7 MCP and context-mode MCP.
 
 ## Context Tiers
 
@@ -302,15 +365,7 @@ Fetches official API docs via Context7 MCP.
 
 | Skill | Activates on | Notes |
 |-------|-------------|-------|
-| \`j.test-writing\` | \`*.test.ts\`, \`*.spec.ts\` | Optional: uncomment Playwright MCP in frontmatter for E2E |
-| \`j.page-creation\` | \`app/**/page.tsx\` | Stack-specific; use only on Next.js App Router repos |
-| \`j.api-route-creation\` | \`app/api/**/*.ts\` | |
-| \`j.server-action-creation\` | \`**/actions.ts\` | Stack-specific; use only on Next.js Server Actions repos |
-| \`j.schema-migration\` | \`schema.prisma\` | |
-| \`j.agents-md-writing\` | \`**/AGENTS.md\` | Directory-local agent guidance |
-| \`j.domain-doc-writing\` | \`docs/domain/**/*.md\` | Business behavior and sync markers |
-| \`j.principle-doc-writing\` | \`docs/principles/**\` | Cross-cutting technical rules |
-| \`j.shell-script-writing\` | \`.opencode/scripts/**/*.sh\`, \`scripts/**/*.sh\`, hooks | Fast, safe automation scripts |
+${skillsTable(projectType, isKotlin)}
 
 ## State Files
 
@@ -321,6 +376,7 @@ Fetches official API docs via Context7 MCP.
 | \`.opencode/state/validator-work.md\` | Validator audit trail — BLOCK/FIX/NOTE per pass |
 | \`.opencode/state/implementer-work.md\` | Implementer decisions and blockers log |
 | \`.opencode/state/workflow-config.md\` | Controls handoff, doc sync, and configurable UNIFY behavior |
+| \`.opencode/state/skill-map.json\` | Dynamic skill-to-pattern mapping — extended by /j.finish-setup |
 | \`.opencode/state/.plan-ready\` | Transient IPC flag — plan path, consumed by plan-autoload |
 
 ## Conventions
@@ -332,6 +388,7 @@ Fetches official API docs via Context7 MCP.
 - Worktrees: \`worktrees/{feature}-{task}/\` — created by implementer, removed by UNIFY
 - Hierarchical \`AGENTS.md\`: root + \`src/\` + \`src/{module}/\` — generated by \`/j.init-deep\`
 `
+}
 
 // ─── Domain INDEX.md ──────────────────────────────────────────────────────────
 

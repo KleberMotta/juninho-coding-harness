@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync } from "fs"
 import { createInterface } from "readline"
+import { execSync } from "child_process"
 import path from "path"
 import { writeAgents } from "./templates/agents.js"
 import { writeSkills } from "./templates/skills.js"
@@ -18,9 +19,23 @@ import {
   DEFAULT_MODELS,
 } from "./models.js"
 import { rewriteAgentModels } from "./rewriter.js"
+import {
+  type ProjectType,
+  VALID_PROJECT_TYPES,
+  PROJECT_TYPE_REGISTRY,
+  detectProjectType,
+  detectKotlin,
+  getEffectiveConfig,
+} from "./project-types.js"
+import {
+  detectLintTool,
+  suggestLintTools,
+  type LintSuggestion,
+} from "./lint-detection.js"
 
 export interface SetupOptions {
   force?: boolean
+  type?: ProjectType
 }
 
 /* ─── Readline helper ─── */
@@ -167,37 +182,163 @@ async function manualEntry(
 
 /* ─── Resolve models (auto or interactive) ─── */
 
-/**
- * Resolve models for setup:
- *   1. Saved config exists → use it
- *   2. Auto-discovery succeeds and finds exactly one per tier → use auto
- *   3. Otherwise → interactive selection
- */
 async function resolveModelsForSetup(
   projectDir: string,
   rl: ReturnType<typeof createInterface>,
 ): Promise<JuninhoConfig> {
-  // 1. Check saved config
   const saved = loadConfig(projectDir)
   if (saved) return saved
 
-  // 2. Try auto-discovery (non-interactive happy path)
   const available = discoverAvailableModels()
   if (available.length > 0) {
     const best = selectBestModels(available)
     if (best.strong && best.medium && best.weak) {
-      // All tiers have a clear best — use them automatically
       return { strong: best.strong, medium: best.medium, weak: best.weak }
     }
   }
 
-  // 3. Non-interactive fallback (CI, piped stdin, no TTY)
   if (!process.stdin.isTTY) {
     return { strong: DEFAULT_MODELS.strong, medium: DEFAULT_MODELS.medium, weak: DEFAULT_MODELS.weak }
   }
 
-  // 4. Interactive selection (discovery failed or ambiguous)
   return interactiveModelSelection(rl, null)
+}
+
+/* ─── Resolve project type ─── */
+
+const TYPE_LABELS: Record<ProjectType, string> = {
+  "node-nextjs": "Node.js + Next.js",
+  "node-generic": "Node.js (generic)",
+  "python": "Python",
+  "go": "Go",
+  "java": "Java / Kotlin (JVM)",
+  "generic": "Generic",
+}
+
+async function resolveProjectType(
+  projectDir: string,
+  rl: ReturnType<typeof createInterface>,
+  options: SetupOptions,
+  savedConfig: JuninhoConfig | null,
+): Promise<{ projectType: ProjectType; isKotlin: boolean }> {
+  // 1. CLI flag takes precedence
+  if (options.type) {
+    const isKotlin = options.type === "java" && detectKotlin(projectDir)
+    if (isKotlin) {
+      console.log("[juninho] Kotlin detected in Java project")
+    }
+    return { projectType: options.type, isKotlin }
+  }
+
+  // 2. Saved config (unless --force)
+  if (savedConfig?.projectType && !options.force) {
+    return {
+      projectType: savedConfig.projectType,
+      isKotlin: savedConfig.isKotlin ?? false,
+    }
+  }
+
+  // 3. Auto-detect
+  const detected = detectProjectType(projectDir)
+
+  if (detected) {
+    const isKotlin = detected === "java" && detectKotlin(projectDir)
+    const label = isKotlin ? "Java/Kotlin (JVM)" : TYPE_LABELS[detected]
+
+    if (process.stdin.isTTY) {
+      const response = await ask(rl, `[juninho] Tipo de projeto detectado: ${label}. Confirma? (S/n): `)
+      if (response.toLowerCase() === "n") {
+        return interactiveTypeSelection(rl, projectDir)
+      }
+    }
+
+    return { projectType: detected, isKotlin }
+  }
+
+  // 4. No detection — interactive or fallback
+  if (process.stdin.isTTY) {
+    console.log("[juninho] Tipo de projeto não detectado automaticamente.")
+    return interactiveTypeSelection(rl, projectDir)
+  }
+
+  return { projectType: "generic", isKotlin: false }
+}
+
+async function interactiveTypeSelection(
+  rl: ReturnType<typeof createInterface>,
+  projectDir: string,
+): Promise<{ projectType: ProjectType; isKotlin: boolean }> {
+  console.log("")
+  console.log("[juninho] Selecione o tipo de projeto:")
+  VALID_PROJECT_TYPES.forEach((t, i) => {
+    console.log(`  ${i + 1}) ${TYPE_LABELS[t]}`)
+  })
+
+  const response = await ask(rl, `  Escolha (1-${VALID_PROJECT_TYPES.length}): `)
+  const idx = parseInt(response, 10)
+  const projectType = (idx >= 1 && idx <= VALID_PROJECT_TYPES.length)
+    ? VALID_PROJECT_TYPES[idx - 1]
+    : "generic"
+
+  const isKotlin = projectType === "java" && detectKotlin(projectDir)
+  if (isKotlin) {
+    console.log("[juninho] Kotlin detected in Java project")
+  }
+
+  return { projectType, isKotlin }
+}
+
+/* ─── Lint detection and suggestion ─── */
+
+async function handleLintDetection(
+  projectDir: string,
+  projectType: ProjectType,
+  isKotlin: boolean,
+  rl: ReturnType<typeof createInterface>,
+): Promise<string | undefined> {
+  const result = detectLintTool(projectDir, projectType, isKotlin)
+
+  if (result.detected) {
+    console.log(`[juninho] ✓ Linter detectado: ${result.detected}${result.configFile ? ` (${result.configFile})` : ""}`)
+    return result.detected
+  }
+
+  // No linter detected — suggest if interactive
+  if (!process.stdin.isTTY) return undefined
+
+  const suggestions = suggestLintTools(projectType, isKotlin)
+  if (suggestions.length === 0) return undefined
+
+  const typeLabel = isKotlin ? "Kotlin" : TYPE_LABELS[projectType]
+  console.log("")
+  console.log(`[juninho] Nenhum linter detectado. Sugestões para projetos ${typeLabel}:`)
+  suggestions.forEach((s, i) => {
+    console.log(`  ${i + 1}) ${s.name} — ${s.command}`)
+  })
+  console.log(`  ${suggestions.length + 1}) Skip`)
+
+  const response = await ask(rl, `  Escolha (1-${suggestions.length + 1}) ou Enter para skip: `)
+  const idx = parseInt(response, 10)
+
+  if (idx >= 1 && idx <= suggestions.length) {
+    const chosen = suggestions[idx - 1]
+    if (chosen.install) {
+      console.log(`[juninho] Instalando ${chosen.name}...`)
+      try {
+        execSync(chosen.install, {
+          cwd: projectDir,
+          stdio: "inherit",
+          timeout: 120_000,
+        })
+        console.log(`[juninho] ✓ ${chosen.name} instalado`)
+      } catch {
+        console.log(`[juninho] ⚠ Falha ao instalar ${chosen.name}. Continue manualmente.`)
+      }
+    }
+    return chosen.name
+  }
+
+  return undefined
 }
 
 /* ─── Main setup ─── */
@@ -224,51 +365,66 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
     console.log(`[juninho]   Medium: ${models.medium}`)
     console.log(`[juninho]   Weak:   ${models.weak}`)
 
+    // Step 0.5: Resolve project type
+    const savedConfig = loadConfig(projectDir)
+    const { projectType, isKotlin } = await resolveProjectType(projectDir, rl, options, savedConfig)
+    const typeLabel = isKotlin ? "Java/Kotlin" : TYPE_LABELS[projectType]
+    console.log(`[juninho] ✓ Project type: ${typeLabel}`)
+
+    // Step 0.7: Detect/suggest lint tool
+    const lintTool = await handleLintDetection(projectDir, projectType, isKotlin, rl)
+
     // Step 1: Create directory structure
-    createDirectories(projectDir)
+    const config = getEffectiveConfig(projectType, isKotlin)
+    createDirectories(projectDir, config.skills)
     console.log("[juninho] ✓ Directories created")
 
-    // Step 2: Save model config
-    saveConfig(projectDir, models)
-    console.log("[juninho] ✓ Model config saved")
+    // Step 2: Save config (models + project type)
+    const fullConfig: JuninhoConfig = {
+      ...models,
+      projectType,
+      isKotlin: isKotlin || undefined,
+    }
+    saveConfig(projectDir, fullConfig)
+    console.log("[juninho] ✓ Config saved")
 
-    // Step 3: Write agents (with resolved models)
-    writeAgents(projectDir, models)
+    // Step 3: Write agents
+    writeAgents(projectDir, models, projectType, isKotlin)
     console.log("[juninho] ✓ Agents created (9)")
 
-    // Step 4: Write skills
-    writeSkills(projectDir)
-    console.log("[juninho] ✓ Skills created (9)")
+    // Step 4: Write skills (filtered by project type)
+    writeSkills(projectDir, projectType, isKotlin)
+    console.log(`[juninho] ✓ Skills created (${config.skills.length})`)
 
     // Step 5: Write plugins
-    writePlugins(projectDir)
+    writePlugins(projectDir, projectType, isKotlin)
     console.log("[juninho] ✓ Plugins created (12)")
 
     // Step 6: Write tools
-    writeTools(projectDir)
+    writeTools(projectDir, projectType, isKotlin)
     console.log("[juninho] ✓ Tools created (4)")
 
     // Step 7: Write support scripts
-    writeSupportScripts(projectDir)
+    writeSupportScripts(projectDir, projectType, isKotlin, lintTool)
     console.log("[juninho] ✓ Support scripts created (4)")
 
     // Step 8: Write commands
     writeCommands(projectDir)
-    console.log("[juninho] ✓ Commands created (14)")
+    console.log("[juninho] ✓ Commands created (15)")
 
     // Step 9: Write state files
     writeState(projectDir)
     console.log("[juninho] ✓ State files created")
 
-    // Step 10: Write docs
-    writeDocs(projectDir)
+    // Step 10: Write docs (parameterized by project type)
+    writeDocs(projectDir, projectType, isKotlin)
     console.log("[juninho] ✓ Docs scaffold created")
 
-    // Step 11: Patch opencode.json (with resolved models)
+    // Step 11: Patch opencode.json
     patchOpencodeJson(projectDir, models)
     console.log("[juninho] ✓ opencode.json patched")
 
-    // Step 12: Install pre-commit hook (outer validation loop)
+    // Step 12: Install pre-commit hook
     writePreCommitHook(projectDir)
 
     // Step 13: Write marker
@@ -278,6 +434,28 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
     console.log("[juninho] ✓ Framework installed successfully!")
     console.log("[juninho] Open OpenCode — /j.plan, /j.spec and /j.implement are ready.")
     console.log("[juninho] Agents: @j.planner, @j.spec-writer, @j.implementer, @j.validator, @j.reviewer, @j.unify, @j.explore, @j.librarian")
+
+    // Step 14: Offer /j.finish-setup
+    if (process.stdin.isTTY) {
+      console.log("")
+      const finishResponse = await ask(rl, "[juninho] Deseja executar /j.finish-setup agora para gerar skills e docs do projeto? (S/n): ")
+      if (finishResponse.toLowerCase() !== "n") {
+        console.log("[juninho] Executando /j.finish-setup via opencode...")
+        try {
+          execSync('opencode -p "/j.finish-setup"', {
+            cwd: projectDir,
+            stdio: "inherit",
+            timeout: 600_000, // 10 minutes
+          })
+        } catch {
+          console.log("[juninho] ⚠ Falha ao executar /j.finish-setup. Execute manualmente no OpenCode.")
+        }
+      } else {
+        console.log("[juninho] Rode /j.finish-setup no OpenCode quando quiser gerar skills e documentação.")
+      }
+    } else {
+      console.log("[juninho] Rode /j.finish-setup no OpenCode quando quiser gerar skills e documentação do projeto.")
+    }
   } finally {
     rl.close()
   }
@@ -287,7 +465,6 @@ function writePreCommitHook(projectDir: string): void {
   const gitHooksDir = path.join(projectDir, ".git", "hooks")
 
   if (!existsSync(gitHooksDir)) {
-    // Not a git repo or hooks dir doesn't exist — skip silently
     return
   }
 
@@ -296,7 +473,6 @@ function writePreCommitHook(projectDir: string): void {
   if (existsSync(hookPath)) {
     const existing = readFileSync(hookPath, "utf-8")
     if (!existing.includes("installed by juninho")) {
-      // Preserve existing hook — do not overwrite
       console.log("[juninho] ⚠ pre-commit hook already exists — skipping (not installed by juninho)")
       return
     }
@@ -328,20 +504,13 @@ exec "$ROOT_DIR/.opencode/scripts/pre-commit.sh"
   }
 }
 
-function createDirectories(projectDir: string): void {
+function createDirectories(projectDir: string, skills: string[]): void {
   const dirs = [
     ".opencode",
     ".opencode/agents",
     ".opencode/skills",
-    ".opencode/skills/j.test-writing",
-    ".opencode/skills/j.page-creation",
-    ".opencode/skills/j.api-route-creation",
-    ".opencode/skills/j.server-action-creation",
-    ".opencode/skills/j.schema-migration",
-    ".opencode/skills/j.agents-md-writing",
-    ".opencode/skills/j.domain-doc-writing",
-    ".opencode/skills/j.principle-doc-writing",
-    ".opencode/skills/j.shell-script-writing",
+    // Only create skill directories for the relevant project type
+    ...skills.map((s) => `.opencode/skills/${s}`),
     ".opencode/plugins",
     ".opencode/tools",
     ".opencode/scripts",

@@ -32,8 +32,8 @@ export const STRONG_MODELS: KnownModel[] = [
     tier: "strong",
   },
   {
-    patterns: ["gpt-5.3-codex", "gpt-5.3_codex", "gpt-53-codex"],
-    displayName: "GPT-5.3 Codex",
+    patterns: ["gpt-5.4", "gpt-5-4"],
+    displayName: "GPT-5.4",
     tier: "strong",
   },
   {
@@ -54,8 +54,8 @@ export const MEDIUM_MODELS: KnownModel[] = [
     tier: "medium",
   },
   {
-    patterns: ["gpt-5.2-codex", "gpt-5.2_codex", "gpt-52-codex"],
-    displayName: "GPT-5.2 Codex",
+    patterns: ["gpt-5.4", "gpt-5-4"],
+    displayName: "GPT-5.4",
     tier: "medium",
   },
 ]

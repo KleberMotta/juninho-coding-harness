@@ -1,13 +1,21 @@
 #!/usr/bin/env node
 import { runSetup } from "./installer.js"
 import path from "path"
+import { VALID_PROJECT_TYPES, type ProjectType } from "./project-types.js"
 
 const { version: VERSION } = require("../package.json") as { version: string }
 
 const args = process.argv.slice(2)
 const command = args[0] ?? ""
 const forceFlag = args.includes("--force")
-const targetDir = args.find(a => !a.startsWith("--") && a !== command) ?? process.cwd()
+
+// Parse --type flag
+const typeIdx = args.indexOf("--type")
+const typeValue = typeIdx !== -1 ? args[typeIdx + 1] : undefined
+
+const targetDir = args.find(
+  (a, i) => !a.startsWith("--") && a !== command && i !== typeIdx + 1
+) ?? process.cwd()
 
 function showHelp(): void {
   console.log(`
@@ -21,6 +29,8 @@ Commands:
 
 Options:
   --force                 Reinstall even if already configured
+  --type <type>           Set project type (skips auto-detection)
+                          Values: ${VALID_PROJECT_TYPES.join(", ")}
   --version, -v           Show juninho version
   --help, -h              Show this help message
 
@@ -34,9 +44,11 @@ Model Tiers:
   To reconfigure models, run 'juninho setup --force'.
 
 Examples:
-  juninho setup                    Install with auto-detected models
-  juninho setup ./my-project       Install into a specific directory
-  juninho setup --force            Reinstall & reconfigure models
+  juninho setup                              Auto-detect stack and models
+  juninho setup ./my-project                 Install into a specific directory
+  juninho setup --type python                Force Python project type
+  juninho setup --type java ./spring-app     Java/Kotlin project (Kotlin auto-detected)
+  juninho setup --force                      Reinstall & reconfigure models
 `)
 }
 
@@ -49,7 +61,17 @@ if (command === "" || command === "--help" || command === "-h") {
 } else if (command === "--version" || command === "-v") {
   showVersion()
 } else if (command === "setup") {
-  runSetup(path.resolve(targetDir), { force: forceFlag })
+  // Validate --type if provided
+  if (typeValue !== undefined && !VALID_PROJECT_TYPES.includes(typeValue as ProjectType)) {
+    console.error(`[juninho] Invalid project type: ${typeValue}`)
+    console.error(`[juninho] Valid types: ${VALID_PROJECT_TYPES.join(", ")}`)
+    process.exit(1)
+  }
+
+  runSetup(path.resolve(targetDir), {
+    force: forceFlag,
+    type: typeValue as ProjectType | undefined,
+  })
     .then(() => process.exit(0))
     .catch((e: Error) => {
       console.error("[juninho] Error:", e.message)

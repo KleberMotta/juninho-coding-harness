@@ -1,6 +1,8 @@
 import { writeFileSync } from "fs"
 import path from "path"
 import { type ModelTier, DEFAULT_MODELS } from "../models.js"
+import type { ProjectType } from "../project-types.js"
+import { getEffectiveConfig } from "../project-types.js"
 
 export interface AgentModels {
   strong: string
@@ -8,11 +10,17 @@ export interface AgentModels {
   weak: string
 }
 
-export function writeAgents(projectDir: string, models?: AgentModels): void {
+export function writeAgents(
+  projectDir: string,
+  models?: AgentModels,
+  projectType: ProjectType = "node-nextjs",
+  isKotlin: boolean = false,
+): void {
   const m = models ?? { ...DEFAULT_MODELS }
   const agentsDir = path.join(projectDir, ".opencode", "agents")
+  const config = getEffectiveConfig(projectType, isKotlin)
 
-  writeFileSync(path.join(agentsDir, "j.planner.md"), planner(m.strong))
+  writeFileSync(path.join(agentsDir, "j.planner.md"), planner(m.strong, config.plannerExamples))
   writeFileSync(path.join(agentsDir, "j.plan-reviewer.md"), planReviewer(m.medium))
   writeFileSync(path.join(agentsDir, "j.spec-writer.md"), specWriter(m.strong))
   writeFileSync(path.join(agentsDir, "j.implementer.md"), implementer(m.medium))
@@ -25,7 +33,7 @@ export function writeAgents(projectDir: string, models?: AgentModels): void {
 
 // ─── Planner ────────────────────────────────────────────────────────────────
 
-const planner = (model: string) => `---
+const planner = (model: string, plannerExamples: { files: string; skills: string } = { files: "src/app/actions/foo.ts", skills: "server-action-creation" }) => `---
 description: Strategic planner — three-phase pipeline (Metis→Prometheus→Momus). Spawns explore+librarian for pre-analysis, interviews developer, delivers approved plan.md. Use for /j.plan.
 mode: subagent
 model: ${model}
@@ -141,8 +149,8 @@ Write to: \`docs/specs/{feature-slug}/plan.md\`
   <tasks>
     <task id="1" wave="1" agent="j.implementer" depends="">
       <n>Clear, actionable task name</n>
-      <skills>server-action-creation</skills>
-      <files>src/app/actions/foo.ts</files>
+      <skills>${plannerExamples.skills}</skills>
+      <files>${plannerExamples.files}</files>
       <action>Precise description of what to implement</action>
       <verify>How to verify this is done — command or observable outcome</verify>
       <done>Criterion verifiable by agent without human input</done>

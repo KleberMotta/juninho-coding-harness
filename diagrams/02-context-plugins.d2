@@ -1,0 +1,226 @@
+direction: down
+
+title: |md
+  # Context Injection & Plugin Architecture
+  Layered intelligence: CARL, Skills, Context7, Context-Mode
+| {
+  near: top-center
+  shape: text
+  style.font-size: 28
+}
+
+# ── Agent making tool calls ──
+agent: "Agent\n(any agent working)" {
+  shape: hexagon
+  style.fill: "#1B5E20"
+  style.font-color: "#FFFFFF"
+  style.bold: true
+  style.font-size: 16
+}
+
+# ── Tool calls ──
+read_tool: "Read file" {shape: step; style.fill: "#B0BEC5"; style.bold: true}
+write_tool: "Write / Edit file" {shape: step; style.fill: "#B0BEC5"; style.bold: true}
+
+agent -> read_tool: triggers
+agent -> write_tool: triggers
+
+# ═══ TIER 1: AGENTS.md Hierarchy ═══
+tier1: "Tier 1 — AGENTS.md Hierarchy" {
+  style.fill: "#E3F2FD"
+  style.stroke: "#1565C0"
+  style.border-radius: 12
+  style.bold: true
+
+  injector: "j.directory-agents-injector" {
+    shape: hexagon
+    style.fill: "#1565C0"
+    style.font-color: "#FFF"
+  }
+
+  desc1: |md
+    **On every Read**, injects AGENTS.md
+    from root → parent → current directory.
+
+    Each level adds context:
+    - **Root**: stack, commands, critical rules
+    - **src/**: architecture, import rules
+    - **src/module/**: business invariants
+  | {
+    shape: page
+    style.fill: "#BBDEFB"
+  }
+
+  injector -> desc1
+}
+
+read_tool -> tier1.injector: "on Read" {style.stroke: "#1565C0"; style.stroke-width: 2}
+
+# ═══ TIER 2: CARL ═══
+tier2: "Tier 2 — CARL (Content-Aware Retrieval of Lore)" {
+  style.fill: "#FFF3E0"
+  style.stroke: "#E65100"
+  style.border-radius: 12
+  style.bold: true
+
+  carl: "j.carl-inject" {
+    shape: hexagon
+    style.fill: "#E65100"
+    style.font-color: "#FFF"
+  }
+
+  flow: "How it works" {
+    style.fill: "#FFE0B2"
+    style.border-radius: 8
+
+    scan: "1. Extract keywords\nfrom file content\n+ active task" {shape: step; style.fill: "#FFF3E0"}
+    match: "2. Word-boundary match\nagainst manifest\n+ INDEX.md" {shape: step; style.fill: "#FFF3E0"}
+    inject: "3. Inject matched\nprinciples + domain\ndocs (≤8KB budget)" {shape: step; style.fill: "#FFF3E0"}
+    scan -> match -> inject
+  }
+
+  sources: "Sources" {
+    style.fill: "#FFE0B2"
+    style.border-radius: 4
+
+    principles: "docs/principles/\n*.md + manifest\n(technical rules)" {shape: document; style.fill: "#FFF8E1"}
+    domain: "docs/domain/\n*.md + INDEX.md\n(business behavior)" {shape: document; style.fill: "#FFF8E1"}
+  }
+
+  carl -> flow
+  flow -> sources: reads
+}
+
+read_tool -> tier2.carl: "on Read + compaction" {style.stroke: "#E65100"; style.stroke-width: 2}
+
+# ═══ TIER 3: Skills ═══
+tier3: "Tier 3 — Skill Injection" {
+  style.fill: "#E8F5E9"
+  style.stroke: "#2E7D32"
+  style.border-radius: 12
+  style.bold: true
+
+  skill_inject: "j.skill-inject" {
+    shape: hexagon
+    style.fill: "#2E7D32"
+    style.font-color: "#FFF"
+  }
+
+  skill_map: "skill-map.json\n(regex → skill)" {
+    shape: stored_data
+    style.fill: "#C8E6C9"
+  }
+
+  skills_grid: "Skills (injected per file pattern)" {
+    style.fill: "#A5D6A7"
+    style.border-radius: 8
+
+    test: "j.test-writing\n*.test.ts | test_*.py\n*_test.go | *Test.kt" {shape: document; style.fill: "#C8E6C9"}
+    page: "j.page-creation\napp/**/page.tsx" {shape: document; style.fill: "#C8E6C9"}
+    api: "j.api-route-creation\napp/api/**/*.ts" {shape: document; style.fill: "#C8E6C9"}
+    action: "j.server-action\n**/actions.ts" {shape: document; style.fill: "#C8E6C9"}
+    schema: "j.schema-migration\nschema.prisma" {shape: document; style.fill: "#C8E6C9"}
+    agents_s: "j.agents-md-writing\n**/AGENTS.md" {shape: document; style.fill: "#C8E6C9"}
+    domain_s: "j.domain-doc\ndocs/domain/**" {shape: document; style.fill: "#C8E6C9"}
+    principle_s: "j.principle-doc\ndocs/principles/**" {shape: document; style.fill: "#C8E6C9"}
+    shell_s: "j.shell-script\n**/*.sh" {shape: document; style.fill: "#C8E6C9"}
+    dynamic: "Dynamic skills\n(/j.finish-setup)" {shape: document; style.fill: "#E8F5E9"; style.stroke-dash: 3}
+  }
+
+  skill_inject -> skill_map: reads
+  skill_map -> skills_grid: "pattern match\n→ inject SKILL.md"
+}
+
+read_tool -> tier3.skill_inject: "on Read/Write" {style.stroke: "#2E7D32"; style.stroke-width: 2}
+write_tool -> tier3.skill_inject: "on Read/Write" {style.stroke: "#2E7D32"; style.stroke-width: 2}
+
+# ═══ Quality Enforcement ═══
+quality: "Quality Enforcement Plugins" {
+  style.fill: "#FCE4EC"
+  style.stroke: "#C62828"
+  style.border-radius: 12
+  style.bold: true
+
+  autoformat: "j.auto-format" {shape: hexagon; style.fill: "#E57373"; style.font-color: "#FFF"}
+  comment: "j.comment-checker" {shape: hexagon; style.fill: "#E57373"; style.font-color: "#FFF"}
+  hashline_r: "j.hashline-read" {shape: hexagon; style.fill: "#E57373"; style.font-color: "#FFF"}
+  hashline_e: "j.hashline-edit" {shape: hexagon; style.fill: "#E57373"; style.font-color: "#FFF"}
+  env: "j.env-protection" {shape: hexagon; style.fill: "#E57373"; style.font-color: "#FFF"}
+}
+
+write_tool -> quality.autoformat: "on Write/Edit" {style.stroke: "#C62828"}
+write_tool -> quality.comment: "on Write/Edit" {style.stroke: "#C62828"}
+read_tool -> quality.hashline_r: "on Read" {style.stroke: "#C62828"}
+write_tool -> quality.hashline_e: "on Edit" {style.stroke: "#C62828"}
+
+# ═══ Flow Control ═══
+flow_ctrl: "Flow Control Plugins" {
+  style.fill: "#EDE7F6"
+  style.stroke: "#4527A0"
+  style.border-radius: 12
+  style.bold: true
+
+  plan_auto: "j.plan-autoload\n(inject active plan)" {shape: hexagon; style.fill: "#7E57C2"; style.font-color: "#FFF"}
+  intent: "j.intent-gate\n(warn scope drift)" {shape: hexagon; style.fill: "#7E57C2"; style.font-color: "#FFF"}
+  todo: "j.todo-enforcer\n(re-inject tasks)" {shape: hexagon; style.fill: "#7E57C2"; style.font-color: "#FFF"}
+  memory: "j.memory\n(persistent context)" {shape: hexagon; style.fill: "#7E57C2"; style.font-color: "#FFF"}
+}
+
+write_tool -> flow_ctrl.intent: "on Write/Edit" {style.stroke: "#4527A0"}
+
+# ═══ External Knowledge (MCP) ═══
+mcp: "External Knowledge — MCP Servers" {
+  style.fill: "#E0F7FA"
+  style.stroke: "#00838F"
+  style.border-radius: 12
+  style.bold: true
+
+  context7: "Context7 MCP" {
+    shape: cylinder
+    style.fill: "#00838F"
+    style.font-color: "#FFF"
+  }
+  ctx7_desc: "Official library docs\n(npm, PyPI, Go modules)\nresolve_library_id →\nget_library_docs" {
+    shape: page
+    style.fill: "#B2EBF2"
+  }
+
+  context_mode: "Context-Mode MCP" {
+    shape: cylinder
+    style.fill: "#00695C"
+    style.font-color: "#FFF"
+  }
+  ctxm_desc: "Semantic search\nacross project files\nCodebase-aware context" {
+    shape: page
+    style.fill: "#B2DFDB"
+  }
+
+  context7 -> ctx7_desc
+  context_mode -> ctxm_desc
+}
+
+librarian: "@j.librarian (weak)" {
+  shape: hexagon
+  style.fill: "#78909C"
+  style.font-color: "#FFF"
+}
+
+agent -> librarian: "task(j.librarian)\nfor external research" {style.stroke-dash: 3; style.stroke-width: 2}
+librarian -> mcp.context7: "query library docs" {style.stroke: "#00838F"; style.stroke-width: 2}
+librarian -> mcp.context_mode: "semantic search" {style.stroke: "#00695C"; style.stroke-width: 2}
+
+# ═══ Enriched Result ═══
+enriched: "Enriched Tool Response\n(original content +\nall injected context)" {
+  shape: page
+  style.fill: "#FFF9C4"
+  style.stroke: "#F57F17"
+  style.bold: true
+  style.font-size: 14
+}
+
+tier1 -> enriched: "directory context" {style.stroke: "#1565C0"; style.stroke-dash: 3}
+tier2 -> enriched: "principles + domain" {style.stroke: "#E65100"; style.stroke-dash: 3}
+tier3 -> enriched: "skill instructions" {style.stroke: "#2E7D32"; style.stroke-dash: 3}
+quality -> enriched: "quality feedback" {style.stroke: "#C62828"; style.stroke-dash: 3}
+
+enriched -> agent: "agent receives\nenriched response" {style.stroke: "#F57F17"; style.stroke-width: 3; style.bold: true}
