@@ -16,6 +16,8 @@ export type ProjectType =
   | "java"
   | "generic"
 
+export type BuildTool = "gradle" | "maven"
+
 export interface ProjectTypeConfig {
   /** Skills to install for this project type */
   skills: string[]
@@ -33,6 +35,19 @@ export interface ProjectTypeConfig {
   migrationDirs: string[]
   /** Whether this is a Kotlin JVM project (affects lint/test tooling) */
   isKotlin?: boolean
+}
+
+/**
+ * Detect the build tool used by a java-type project.
+ */
+export function detectBuildTool(projectDir: string): BuildTool {
+  if (
+    existsSync(path.join(projectDir, "build.gradle.kts")) ||
+    existsSync(path.join(projectDir, "build.gradle"))
+  ) {
+    return "gradle"
+  }
+  return "maven"
 }
 
 /**
@@ -56,6 +71,22 @@ export function detectKotlin(projectDir: string): boolean {
       } catch {
         // ignore read errors
       }
+    }
+  }
+
+  // Check pom.xml for kotlin
+  const pomPath = path.join(projectDir, "pom.xml")
+  if (existsSync(pomPath)) {
+    try {
+      const content = readFileSync(pomPath, "utf-8")
+      if (
+        content.includes("kotlin") ||
+        content.includes("org.jetbrains.kotlin")
+      ) {
+        return true
+      }
+    } catch {
+      // ignore read errors
     }
   }
 
@@ -208,24 +239,31 @@ export const PROJECT_TYPE_REGISTRY: Record<ProjectType, ProjectTypeConfig> = {
 }
 
 /**
- * Get the effective config for a project type, with Kotlin adjustments.
+ * Get the effective config for a project type, with Kotlin and build tool adjustments.
  * When isKotlin is true and type is "java", swaps lint chain and planner examples.
  */
 export function getEffectiveConfig(
   projectType: ProjectType,
   isKotlin: boolean,
+  buildTool?: BuildTool,
 ): ProjectTypeConfig {
   const base = { ...PROJECT_TYPE_REGISTRY[projectType] }
 
   if (projectType === "java" && isKotlin) {
     base.isKotlin = true
-    base.lintChain = ["./gradlew ktlintCheck", "./gradlew detekt", "./gradlew checkstyleMain"]
+    if (buildTool === "maven") {
+      base.lintChain = ["./mvnw spotless:check", "./mvnw ktlint:check", "./mvnw checkstyle:check"]
+    } else {
+      base.lintChain = ["./gradlew ktlintCheck", "./gradlew detekt", "./gradlew checkstyleMain"]
+    }
     base.plannerExamples = {
       files: "src/main/kotlin/com/example/FooService.kt",
       skills: "",
     }
     base.astGrepLang = "kotlin"
     base.fileExtensions = [".kt", ".kts", ".java"]
+  } else if (projectType === "java" && buildTool === "maven") {
+    base.lintChain = ["./mvnw spotless:check", "./mvnw checkstyle:check"]
   }
 
   return base

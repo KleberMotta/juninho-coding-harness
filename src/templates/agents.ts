@@ -1,7 +1,7 @@
 import { writeFileSync } from "fs"
 import path from "path"
 import { type ModelTier, DEFAULT_MODELS } from "../models.js"
-import type { ProjectType } from "../project-types.js"
+import type { ProjectType, BuildTool } from "../project-types.js"
 import { getEffectiveConfig } from "../project-types.js"
 
 export interface AgentModels {
@@ -15,10 +15,11 @@ export function writeAgents(
   models?: AgentModels,
   projectType: ProjectType = "node-nextjs",
   isKotlin: boolean = false,
+  buildTool?: BuildTool,
 ): void {
   const m = models ?? { ...DEFAULT_MODELS }
   const agentsDir = path.join(projectDir, ".opencode", "agents")
-  const config = getEffectiveConfig(projectType, isKotlin)
+  const config = getEffectiveConfig(projectType, isKotlin, buildTool)
 
   writeFileSync(path.join(agentsDir, "j.planner.md"), planner(m.strong, config.plannerExamples))
   writeFileSync(path.join(agentsDir, "j.plan-reviewer.md"), planReviewer(m.medium))

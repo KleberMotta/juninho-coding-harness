@@ -1,15 +1,16 @@
 import { writeFileSync } from "fs"
 import path from "path"
-import type { ProjectType } from "../project-types.js"
+import type { ProjectType, BuildTool } from "../project-types.js"
 import { getEffectiveConfig } from "../project-types.js"
 
 export function writeTools(
   projectDir: string,
   projectType: ProjectType = "node-nextjs",
   isKotlin: boolean = false,
+  buildTool?: BuildTool,
 ): void {
   const toolsDir = path.join(projectDir, ".opencode", "tools")
-  const config = getEffectiveConfig(projectType, isKotlin)
+  const config = getEffectiveConfig(projectType, isKotlin, buildTool)
 
   writeFileSync(path.join(toolsDir, "find-pattern.ts"), findPattern(projectType, isKotlin))
   writeFileSync(path.join(toolsDir, "next-version.ts"), nextVersion(config.migrationDirs))

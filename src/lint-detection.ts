@@ -8,7 +8,7 @@
 
 import { existsSync, readFileSync } from "fs"
 import path from "path"
-import type { ProjectType } from "./project-types.js"
+import type { ProjectType, BuildTool } from "./project-types.js"
 
 export interface LintDetectionResult {
   detected: string | null
@@ -52,12 +52,27 @@ export function detectLintTool(
 export function suggestLintTools(
   projectType: ProjectType,
   isKotlin: boolean,
+  buildTool?: BuildTool,
 ): LintSuggestion[] {
   if (projectType === "java" && isKotlin) {
+    if (buildTool === "maven") {
+      return [
+        {
+          name: "Spotless (Maven plugin)",
+          install: 'echo "Add com.diffplug.spotless:spotless-maven-plugin to pom.xml plugins, then run: ./mvnw spotless:apply"',
+          command: "./mvnw spotless:check",
+        },
+        {
+          name: "ktlint (Maven plugin)",
+          install: 'echo "Add com.github.gantsign.maven:ktlint-maven-plugin to pom.xml plugins"',
+          command: "./mvnw ktlint:check",
+        },
+      ]
+    }
     return [
       {
         name: "ktlint (via Gradle plugin)",
-        install: './gradlew addKtlintCheckGitPreCommitHook || echo "Add id(\\"org.jlleitschuh.gradle.ktlint\\") to plugins in build.gradle.kts"',
+        install: 'echo "Add id(\\"org.jlleitschuh.gradle.ktlint\\") to plugins in build.gradle.kts, then run: ./gradlew ktlintApplyToIdea"',
         command: "./gradlew ktlintCheck",
       },
       {
@@ -86,9 +101,15 @@ export function suggestLintTools(
         { name: "go vet (built-in)", install: "", command: "go vet ./..." },
       ]
     case "java":
+      if (buildTool === "maven") {
+        return [
+          { name: "Spotless (Maven plugin)", install: 'echo "Add com.diffplug.spotless:spotless-maven-plugin to pom.xml plugins"', command: "./mvnw spotless:check" },
+          { name: "Checkstyle (Maven plugin)", install: 'echo "Add maven-checkstyle-plugin to pom.xml plugins"', command: "./mvnw checkstyle:check" },
+        ]
+      }
       return [
-        { name: "Checkstyle (Gradle/Maven plugin)", install: 'echo "Add checkstyle plugin to build script"', command: "./gradlew checkstyleMain" },
-        { name: "SpotBugs (Gradle/Maven plugin)", install: 'echo "Add spotbugs plugin to build script"', command: "./gradlew spotbugsMain" },
+        { name: "Checkstyle (Gradle plugin)", install: 'echo "Add checkstyle plugin to build.gradle"', command: "./gradlew checkstyleMain" },
+        { name: "SpotBugs (Gradle plugin)", install: 'echo "Add spotbugs plugin to build.gradle"', command: "./gradlew spotbugsMain" },
       ]
     case "generic":
       return []
@@ -160,12 +181,15 @@ function detectGoLint(projectDir: string): LintDetectionResult {
 }
 
 function detectJavaLint(projectDir: string): LintDetectionResult {
-  // Check for checkstyle in build scripts
+  // Check for lint tools in build scripts
   for (const buildFile of ["build.gradle", "build.gradle.kts", "pom.xml"]) {
     const p = path.join(projectDir, buildFile)
     if (existsSync(p)) {
       try {
         const content = readFileSync(p, "utf-8")
+        if (content.includes("spotless")) {
+          return { detected: "spotless", configFile: buildFile }
+        }
         if (content.includes("checkstyle")) {
           return { detected: "checkstyle", configFile: buildFile }
         }
@@ -181,12 +205,15 @@ function detectJavaLint(projectDir: string): LintDetectionResult {
 }
 
 function detectKotlinLint(projectDir: string): LintDetectionResult {
-  // Check for ktlint or detekt in build scripts
-  for (const buildFile of ["build.gradle.kts", "build.gradle"]) {
+  // Check for lint tools in build scripts (Gradle and Maven)
+  for (const buildFile of ["build.gradle.kts", "build.gradle", "pom.xml"]) {
     const p = path.join(projectDir, buildFile)
     if (existsSync(p)) {
       try {
         const content = readFileSync(p, "utf-8")
+        if (content.includes("spotless")) {
+          return { detected: "spotless", configFile: buildFile }
+        }
         if (content.includes("ktlint")) {
           return { detected: "ktlint", configFile: buildFile }
         }

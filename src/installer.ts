@@ -21,10 +21,12 @@ import {
 import { rewriteAgentModels } from "./rewriter.js"
 import {
   type ProjectType,
+  type BuildTool,
   VALID_PROJECT_TYPES,
   PROJECT_TYPE_REGISTRY,
   detectProjectType,
   detectKotlin,
+  detectBuildTool,
   getEffectiveConfig,
 } from "./project-types.js"
 import {
@@ -294,6 +296,7 @@ async function handleLintDetection(
   projectDir: string,
   projectType: ProjectType,
   isKotlin: boolean,
+  buildTool: BuildTool | undefined,
   rl: ReturnType<typeof createInterface>,
 ): Promise<string | undefined> {
   const result = detectLintTool(projectDir, projectType, isKotlin)
@@ -306,7 +309,7 @@ async function handleLintDetection(
   // No linter detected — suggest if interactive
   if (!process.stdin.isTTY) return undefined
 
-  const suggestions = suggestLintTools(projectType, isKotlin)
+  const suggestions = suggestLintTools(projectType, isKotlin, buildTool)
   if (suggestions.length === 0) return undefined
 
   const typeLabel = isKotlin ? "Kotlin" : TYPE_LABELS[projectType]
@@ -368,14 +371,15 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
     // Step 0.5: Resolve project type
     const savedConfig = loadConfig(projectDir)
     const { projectType, isKotlin } = await resolveProjectType(projectDir, rl, options, savedConfig)
+    const buildTool = projectType === "java" ? detectBuildTool(projectDir) : undefined
     const typeLabel = isKotlin ? "Java/Kotlin" : TYPE_LABELS[projectType]
-    console.log(`[juninho] ✓ Project type: ${typeLabel}`)
+    console.log(`[juninho] ✓ Project type: ${typeLabel}${buildTool ? ` (${buildTool})` : ""}`)
 
     // Step 0.7: Detect/suggest lint tool
-    const lintTool = await handleLintDetection(projectDir, projectType, isKotlin, rl)
+    const lintTool = await handleLintDetection(projectDir, projectType, isKotlin, buildTool, rl)
 
     // Step 1: Create directory structure
-    const config = getEffectiveConfig(projectType, isKotlin)
+    const config = getEffectiveConfig(projectType, isKotlin, buildTool)
     createDirectories(projectDir, config.skills)
     console.log("[juninho] ✓ Directories created")
 
@@ -384,12 +388,13 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
       ...models,
       projectType,
       isKotlin: isKotlin || undefined,
+      buildTool,
     }
     saveConfig(projectDir, fullConfig)
     console.log("[juninho] ✓ Config saved")
 
     // Step 3: Write agents
-    writeAgents(projectDir, models, projectType, isKotlin)
+    writeAgents(projectDir, models, projectType, isKotlin, buildTool)
     console.log("[juninho] ✓ Agents created (9)")
 
     // Step 4: Write skills (filtered by project type)
@@ -401,7 +406,7 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
     console.log("[juninho] ✓ Plugins created (12)")
 
     // Step 6: Write tools
-    writeTools(projectDir, projectType, isKotlin)
+    writeTools(projectDir, projectType, isKotlin, buildTool)
     console.log("[juninho] ✓ Tools created (4)")
 
     // Step 7: Write support scripts
@@ -442,7 +447,7 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
       if (finishResponse.toLowerCase() !== "n") {
         console.log("[juninho] Executando /j.finish-setup via opencode...")
         try {
-          execSync('opencode -p "/j.finish-setup"', {
+          execSync('opencode run "/j.finish-setup"', {
             cwd: projectDir,
             stdio: "inherit",
             timeout: 600_000, // 10 minutes
