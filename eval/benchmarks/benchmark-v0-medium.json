@@ -1,0 +1,132 @@
+{
+  "version": "v0-medium",
+  "description": "Medium benchmark covering bootstrap plus two representative full-flow feature tasks.",
+  "weights": {
+    "successRate": 1000,
+    "qualityRate": 200,
+    "regressionRate": -80,
+    "normalizedTime": -40,
+    "normalizedCost": -20,
+    "flakeRate": -30
+  },
+  "defaults": {
+    "projectType": "node-generic",
+    "trials": 1,
+    "bootstrapTimeoutMs": 600000,
+    "implementTimeoutMs": 480000,
+    "commandTimeoutMs": 420000,
+    "checkTimeoutMs": 720000,
+    "unifyTimeoutMs": 720000,
+    "expectedCommands": [
+      "j.finish-setup",
+      "j.spec",
+      "j.plan",
+      "j.implement",
+      "j.check",
+      "j.unify"
+    ]
+  },
+  "repos": [
+    {
+      "id": "fixture-node-service",
+      "kind": "fixture",
+      "path": "eval/fixtures/node-service",
+      "projectType": "node-generic"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "bootstrap-node-service",
+      "repo": "fixture-node-service",
+      "type": "bootstrap",
+      "trials": 1,
+      "prompt": "Bootstrap repository knowledge for this project using the canonical harness workflow.",
+      "expect": {
+        "filesExist": [
+          "AGENTS.md",
+          ".opencode/juninho-config.json",
+          ".opencode/skill-map.json",
+          "docs/domain/INDEX.md",
+          "docs/principles/manifest"
+        ]
+      }
+    },
+    {
+      "id": "full-flow-add-subtract",
+      "repo": "fixture-node-service",
+      "type": "full-flow",
+      "trials": 1,
+      "specPrompt": "Add a subtract operation to the tiny math service, expose it through the HTTP API, and add focused tests. Keep the existing style and naming conventions.",
+      "expect": {
+        "filesExist": [
+          "src/math.js",
+          "src/server.js",
+          "test/math.test.js"
+        ],
+        "anyGlobExists": [
+          "docs/specs/**/spec.md",
+          "docs/specs/**/plan.md",
+          "docs/specs/**/state/README.md"
+        ],
+        "fileContains": [
+          {
+            "path": "src/math.js",
+            "text": "subtract"
+          },
+          {
+            "path": "src/server.js",
+            "text": "subtract"
+          },
+          {
+            "path": "test/math.test.js",
+            "text": "subtract"
+          }
+        ],
+        "commandsSucceed": [
+          "npm test"
+        ]
+      }
+    },
+    {
+      "id": "full-flow-validate-query-params",
+      "repo": "fixture-node-service",
+      "type": "full-flow",
+      "trials": 1,
+      "specPrompt": "Harden the tiny math HTTP API so invalid query params are rejected with a stable JSON error response instead of returning NaN. Cover both the shared parsing path and focused tests, keeping the current style and no new dependencies.",
+      "expect": {
+        "filesExist": [
+          "src/server.js",
+          "test/math.test.js",
+          "test/server.test.js"
+        ],
+        "anyGlobExists": [
+          "docs/specs/**/spec.md",
+          "docs/specs/**/plan.md",
+          "docs/specs/**/state/README.md",
+          "docs/specs/**/state/check-review.md"
+        ],
+        "fileContains": [
+          {
+            "path": "src/server.js",
+            "text": "400"
+          },
+          {
+            "path": "src/server.js",
+            "text": "parseNumbers"
+          },
+          {
+            "path": "test/server.test.js",
+            "text": "400"
+          },
+          {
+            "path": "test/server.test.js",
+            "text": "not_found"
+          }
+        ],
+        "commandsSucceed": [
+          "npm test"
+        ]
+      }
+    }
+  ]
+}

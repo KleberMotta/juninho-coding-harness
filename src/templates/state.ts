@@ -2,16 +2,16 @@ import { writeFileSync } from "fs"
 import path from "path"
 
 export function writeState(projectDir: string): void {
-  const stateDir = path.join(projectDir, ".opencode", "state")
+  const opencodeDir = path.join(projectDir, ".opencode")
+  const stateDir = path.join(opencodeDir, "state")
+  const templatesDir = path.join(opencodeDir, "templates")
 
   writeFileSync(path.join(stateDir, "persistent-context.md"), PERSISTENT_CONTEXT)
   writeFileSync(path.join(stateDir, "execution-state.md"), EXECUTION_STATE)
-  writeFileSync(path.join(stateDir, "validator-work.md"), VALIDATOR_WORK)
-  writeFileSync(path.join(stateDir, "implementer-work.md"), IMPLEMENTER_WORK)
-  writeFileSync(path.join(stateDir, "workflow-config.md"), WORKFLOW_CONFIG)
+  writeFileSync(path.join(stateDir, "README.md"), STATE_README)
+  writeFileSync(path.join(opencodeDir, ".gitignore"), OPENCODE_GITIGNORE)
+  writeFileSync(path.join(templatesDir, "spec-state-readme.md"), SPEC_STATE_README_TEMPLATE)
 }
-
-// ─── Persistent Context ───────────────────────────────────────────────────────
 
 const PERSISTENT_CONTEXT = `# Persistent Context
 
@@ -38,7 +38,7 @@ that should be remembered long-term about this project.
 ## Recurring Patterns
 
 <!-- Patterns that appear repeatedly in this codebase -->
-<!-- Update after /j.init-deep or when you discover a strong pattern -->
+<!-- Update after /j.finish-setup or when you discover a strong pattern -->
 
 ## Anti-Patterns Found
 
@@ -56,22 +56,21 @@ that should be remembered long-term about this project.
 <!-- Format: - **Term**: definition -->
 `
 
-// ─── Execution State ──────────────────────────────────────────────────────────
-
 const EXECUTION_STATE = `# Execution State
 
-Tracks current work in progress. Updated by agents during execution.
-The todo-enforcer plugin reads this file to prevent drift.
+Tracks the local session summary. Feature-local task state lives under
+docs/specs/{feature-slug}/state/.
 
 ## Current Session
 
 - **Started**: (auto-filled by /j.start-work)
 - **Goal**: (auto-filled)
 - **Plan**: (path to plan.md if active)
+- **Feature slug**: (auto-filled when a spec/plan is active)
 
 ## Task List
 
-<!-- Tasks are added by /j.plan and checked off by @j.implementer -->
+<!-- High-level session checklist only. Detailed task execution belongs under docs/specs/{slug}/state/tasks/. -->
 <!-- Format: - [ ] task description (agent: @j.agentname) -->
 
 ## In Progress
@@ -89,7 +88,7 @@ The todo-enforcer plugin reads this file to prevent drift.
 
 ## Session Log
 
-<!-- Brief log of what happened — helps with /handoff -->
+<!-- Brief log of what happened — helps with /j.handoff -->
 <!-- Format: HH:MM - action taken -->
 
 ---
@@ -98,120 +97,69 @@ The todo-enforcer plugin reads this file to prevent drift.
 *Next action: (fill in at end of session for /j.handoff)*
 `
 
-// ─── Validator Work ───────────────────────────────────────────────────────────
+const STATE_README = `# OpenCode State
 
-const VALIDATOR_WORK = `# Validator Work Log
+This directory is local-only session state. It should never be shared through git.
 
-Per-agent scratch space and audit trail for the \`@j.validator\` agent.
-Written by @j.validator during each validation pass. Read by UNIFY to understand what was deferred.
+What belongs here:
+- \`execution-state.md\` — local session summary
+- \`persistent-context.md\` — local persistent memory used by the harness in this workspace
+- \`active-plan.json\` — session-level pointer to the currently active spec/plan bundle
 
-## Current Validation Pass
+What does not belong here:
+- repository config (\`.opencode/juninho-config.json\`)
+- skill map (\`.opencode/skill-map.json\`)
+- per-feature task state (\`docs/specs/{feature-slug}/state/\`)
 
-- Spec: (path to spec being validated)
-- Feature: (feature slug)
-- Date: (auto-filled by validator)
-
-## Results
-
-| Criterion | Tier | Notes |
-|-----------|------|-------|
-| (none yet) | — | — |
-
-## Technical Debt (NOTE tier)
-
-Accepted concerns that don't block approval — review in next iteration:
-
-- (none)
-
-## Fixes Applied Directly (FIX tier)
-
-Changes made by @j.validator to resolve FIX-tier issues:
-
-- (none)
-
-## Blockers (BLOCK tier)
-
-Must be resolved before approval can be granted:
-
-- (none)
-
-## Verdict
-
-(APPROVED | APPROVED_WITH_NOTES | BLOCKED)
-
----
-
-*Reset by UNIFY at end of each feature cycle.*
+Per-feature task state continues to live in \`docs/specs/{feature-slug}/state/\`.
 `
 
-// ─── Implementer Work ─────────────────────────────────────────────────────────
-
-const IMPLEMENTER_WORK = `# Implementer Work Log
-
-Per-agent scratch space for the \`@j.implementer\` agent.
-Tracks in-progress decisions, blockers, and deviations from the plan.
-
-## Current Task
-
-- Task ID: (from plan.md)
-- Wave: (wave number)
-- Worktree: (path, e.g., worktrees/feature-task-1)
-- Branch: (feature branch name)
-
-## Decisions Made
-
-Choices made during implementation that deviate from or extend the plan:
-
-- (none)
-
-## Blockers
-
-Issues that need resolution before task can proceed:
-
-- (none)
-
-## Files Modified
-
-Track which files were changed in this session:
-
-- (none)
-
----
-
-*Updated by @j.implementer. Reset by UNIFY at end of each feature cycle.*
+const OPENCODE_GITIGNORE = `node_modules
+bun.lock
+package-lock.json
+state/
+state/**
 `
 
-const WORKFLOW_CONFIG = `# Workflow Config
+const SPEC_STATE_README_TEMPLATE = `# Feature State
 
-Configure how the harness should behave in this repository.
-Edit these defaults to match your delivery workflow.
+This directory stores canonical harness state for \`docs/specs/{feature-slug}/\`.
 
-## Implement Phase
+## Layout
 
-- pre_commit_scope: related
-- post_implement_full_check: enabled
-- reenter_implement_on_full_check_failure: enabled
+- \`README.md\`
+  - this file
+- \`implementer-work.md\`
+  - append-only feature log for cross-task decisions, retries, and deviations
+- \`check-review.md\`
+  - latest repo-wide verification + detailed review report used to drive follow-up corrections
+- \`integration-state.json\`
+  - source of truth for validated task commits, feature-branch commits, and cleanup status
+- \`tasks/\`
+  - one directory per task: \`task-{id}/\`
+- \`sessions/\`
+  - one runtime metadata file per spawned session: \`{sessionID}-runtime.json\`
 
-## Unify Phase
+## Task Directory
 
-- unify_enabled: true
-- update_persistent_context: true
-- update_domain_docs: true
-- update_domain_index: true
-- merge_worktrees: true
-- create_pull_request: true
-- create_delivery_pr_body: true
+Each task lives under \`tasks/task-{id}/\`.
 
-## Documentation Sync
+Files used by the harness:
+- \`execution-state.md\`
+- \`validator-work.md\`
+- \`retry-state.json\`
+- \`runtime.json\`
 
-- prefer_agents_md_for_local_rules: true
-- prefer_domain_docs_for_business_behavior: true
-- prefer_principle_docs_for_cross_cutting_tech: true
-- sync_markers: enabled
+## Session Runtime
 
-## Notes
+\`sessions/{sessionID}-runtime.json\` maps a live OpenCode session back to its task runtime metadata.
+These files are operational metadata only.
 
-- \`related\` means the pre-commit path should lint structure and run only tests related to staged files.
-- \`post_implement_full_check\` means the orchestrator should run \`.opencode/scripts/check-all.sh\` after \`@j.implementer\` exits.
-- When \`reenter_implement_on_full_check_failure\` is enabled, pass the failing output back to \`@j.implementer\` instead of fixing it outside the implementation loop.
+## Rules
+
+- The harness writes feature state only in this directory tree.
+- Task-specific files must live under \`tasks/task-{id}/\`.
+- Session runtime files must live under \`sessions/\`.
+- \`integration-state.json\` and \`implementer-work.md\` stay at the root of this feature state directory.
+- \`check-review.md\` stays at the root of this feature state directory and is overwritten by the latest full-check pass.
 `

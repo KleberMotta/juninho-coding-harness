@@ -24,12 +24,92 @@ export interface JuninhoConfig {
   isKotlin?: boolean
   /** Build tool for java projects */
   buildTool?: BuildTool
+  /** Runtime workflow settings for implement/unify/docs phases */
+  workflow?: {
+    automation?: {
+      nonInteractive?: boolean
+      autoApproveArtifacts?: boolean
+    }
+    implement?: {
+      preCommitScope?: string
+      postImplementFullCheck?: boolean
+      reenterImplementOnFullCheckFailure?: boolean
+    }
+    unify?: {
+      enabled?: boolean
+      updatePersistentContext?: boolean
+      updateDomainDocs?: boolean
+      updateDomainIndex?: boolean
+      cleanupIntegratedTaskBranches?: boolean
+      createPullRequest?: boolean
+      createDeliveryPrBody?: boolean
+    }
+    documentation?: {
+      preferAgentsMdForLocalRules?: boolean
+      preferDomainDocsForBusinessBehavior?: boolean
+      preferPrincipleDocsForCrossCuttingTech?: boolean
+      syncMarkers?: boolean
+    }
+  }
 }
 
 const CONFIG_FILENAME = "juninho-config.json"
 
+export const DEFAULT_WORKFLOW_CONFIG: NonNullable<JuninhoConfig["workflow"]> = {
+  automation: {
+    nonInteractive: false,
+    autoApproveArtifacts: false,
+  },
+  implement: {
+    preCommitScope: "related",
+    postImplementFullCheck: true,
+    reenterImplementOnFullCheckFailure: true,
+  },
+  unify: {
+    enabled: true,
+    updatePersistentContext: true,
+    updateDomainDocs: true,
+    updateDomainIndex: true,
+    cleanupIntegratedTaskBranches: true,
+    createPullRequest: true,
+    createDeliveryPrBody: true,
+  },
+  documentation: {
+    preferAgentsMdForLocalRules: true,
+    preferDomainDocsForBusinessBehavior: true,
+    preferPrincipleDocsForCrossCuttingTech: true,
+    syncMarkers: true,
+  },
+}
+
 function configPath(projectDir: string): string {
   return path.join(projectDir, ".opencode", CONFIG_FILENAME)
+}
+
+function withWorkflowDefaults(config: JuninhoConfig): JuninhoConfig {
+  return {
+    ...config,
+    workflow: {
+      ...DEFAULT_WORKFLOW_CONFIG,
+      ...config.workflow,
+      automation: {
+        ...DEFAULT_WORKFLOW_CONFIG.automation,
+        ...config.workflow?.automation,
+      },
+      implement: {
+        ...DEFAULT_WORKFLOW_CONFIG.implement,
+        ...config.workflow?.implement,
+      },
+      unify: {
+        ...DEFAULT_WORKFLOW_CONFIG.unify,
+        ...config.workflow?.unify,
+      },
+      documentation: {
+        ...DEFAULT_WORKFLOW_CONFIG.documentation,
+        ...config.workflow?.documentation,
+      },
+    },
+  }
 }
 
 /**
@@ -43,14 +123,15 @@ export function loadConfig(projectDir: string): JuninhoConfig | null {
   try {
     const data = JSON.parse(readFileSync(p, "utf-8"))
     if (data.strong && data.medium && data.weak) {
-      return {
+      return withWorkflowDefaults({
         strong: data.strong,
         medium: data.medium,
         weak: data.weak,
         projectType: data.projectType,
         isKotlin: data.isKotlin,
         buildTool: data.buildTool,
-      }
+        workflow: data.workflow,
+      })
     }
     return null
   } catch {
@@ -67,7 +148,7 @@ export function saveConfig(projectDir: string, config: JuninhoConfig): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true })
   }
-  writeFileSync(configPath(projectDir), JSON.stringify(config, null, 2) + "\n")
+  writeFileSync(configPath(projectDir), JSON.stringify(withWorkflowDefaults(config), null, 2) + "\n")
 }
 
 /**

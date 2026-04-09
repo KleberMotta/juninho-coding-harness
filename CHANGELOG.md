@@ -12,13 +12,14 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### Changed
 - Pre-commit do framework agora roda lint estrutural e testes relacionados aos arquivos staged por padrão, deixando checks gerais para a etapa pós-implementação
 - `@j.implementer` agora encerra após código + testes de tarefa; o fluxo prevê `/j.check` e reentrada no implementer quando o check amplo falhar
-- `@j.unify` agora segue `.opencode/state/workflow-config.md`, permitindo configurar merge, PR e atualização de docs
+- `@j.unify` agora segue `.opencode/juninho-config.json`, permitindo configurar closeout, PR e atualização de docs
 - O scaffold ganhou skills para `AGENTS.md`, docs de domínio, docs de princípios e scripts shell, reduzindo viés para frontend/Next.js
 - Novo comando `/j.sync-docs` e marcadores `juninho:sync` para alinhar documentação com arquivos-chave do código
+- `/j.finish-setup` passa a ser o bootstrap canônico do repositório, absorvendo a geração de `AGENTS.md` hierárquicos, skills e docs antes dividida com `/j.init-deep`
 
 ### Added
 - `.opencode/scripts/pre-commit.sh`, `.opencode/scripts/lint-structure.sh`, `.opencode/scripts/test-related.sh` e `.opencode/scripts/check-all.sh`
-- `.opencode/state/workflow-config.md` para controlar handoff, checks pós-implementação e comportamento do UNIFY
+- `.opencode/juninho-config.json` para controlar workflow, closeout e comportamento do UNIFY
 - Evals em `evals/` para medir a qualidade do harness contra um PR de referência
 
 ### Planejado para 1.0.0-beta.1
@@ -88,7 +89,7 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - `/j.plan` — invoca @j.planner
 - `/j.spec` — invoca @j.spec-writer
 - `/j.implement` — invoca @j.implementer
-- `/j.init-deep` — exploração profunda do codebase para popular docs de domínio
+- `/j.finish-setup` — bootstrap canônico do codebase para AGENTS, skills e docs
 - `/j.start-work` — inicializa contexto de sessão focada
 - `/j.handoff` — prepara documentação de handoff fim de sessão
 - `/j.ulw-loop` — modo ultra work, máximo paralelismo

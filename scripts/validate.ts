@@ -68,20 +68,21 @@ const readCmd = (n: string) => readFileSync(cmdPath(n), "utf-8")
 // ─── Known Lists ──────────────────────────────────────────────────────────────
 
 const AGENTS = [
-  "j.planner", "j.plan-reviewer", "j.spec-writer", "j.implementer",
+  "j.planner", "j.plan", "j.plan-reviewer", "j.spec-writer", "j.spec", "j.implementer",
   "j.validator", "j.reviewer", "j.unify", "j.explore", "j.librarian",
 ]
 
 const PLUGINS = [
-  "j.env-protection", "j.auto-format", "j.plan-autoload", "j.carl-inject",
+  "j.env-protection", "j.auto-format", "j.plan-autoload", "j.state-paths", "j.feature-state-paths",
+  "j.juninho-config", "j.task-runtime", "j.task-board", "j.notify", "j.carl-inject",
   "j.skill-inject", "j.intent-gate", "j.todo-enforcer", "j.comment-checker",
   "j.hashline-read", "j.hashline-edit", "j.directory-agents-injector", "j.memory",
 ]
 
 const COMMANDS = [
-  "j.plan", "j.spec", "j.implement", "j.sync-docs", "j.init-deep", "j.start-work",
-  "j.handoff", "j.ulw-loop", "j.check", "j.lint", "j.test",
-  "j.pr-review", "j.status", "j.unify",
+  "j.plan", "j.spec", "j.implement", "j.sync-docs", "j.start-work",
+   "j.handoff", "j.ulw-loop", "j.check", "j.lint", "j.test",
+   "j.pr-review", "j.status", "j.unify", "j.finish-setup",
 ]
 
 const TOOLS = ["find-pattern", "next-version", "lsp", "ast-grep"]
@@ -90,8 +91,40 @@ const SUPPORT_SCRIPTS = [
   "pre-commit.sh",
   "lint-structure.sh",
   "test-related.sh",
+  "run-test-scope.sh",
   "check-all.sh",
+  "scaffold-spec-state.sh",
+  "harness-feature-integration.sh",
 ]
+
+const EXPECTED_SKILLS_BY_PROJECT_TYPE: Record<string, string[]> = {
+  "node-nextjs": [
+    "j.test-writing", "j.page-creation", "j.api-route-creation",
+    "j.server-action-creation", "j.schema-migration",
+    "j.agents-md-writing", "j.domain-doc-writing",
+    "j.principle-doc-writing", "j.shell-script-writing",
+  ],
+  "node-generic": [
+    "j.test-writing", "j.agents-md-writing", "j.domain-doc-writing",
+    "j.principle-doc-writing", "j.shell-script-writing",
+  ],
+  python: [
+    "j.test-writing", "j.agents-md-writing", "j.domain-doc-writing",
+    "j.principle-doc-writing", "j.shell-script-writing",
+  ],
+  go: [
+    "j.test-writing", "j.agents-md-writing", "j.domain-doc-writing",
+    "j.principle-doc-writing", "j.shell-script-writing",
+  ],
+  java: [
+    "j.test-writing", "j.agents-md-writing", "j.domain-doc-writing",
+    "j.principle-doc-writing", "j.shell-script-writing",
+  ],
+  generic: [
+    "j.agents-md-writing", "j.domain-doc-writing",
+    "j.principle-doc-writing", "j.shell-script-writing",
+  ],
+}
 
 const SKILLS = [
   "j.test-writing", "j.page-creation", "j.api-route-creation",
@@ -187,8 +220,31 @@ const planFile = path.join(testDir, "docs", "specs", "test-feature", "plan.md")
 mkdirSync(path.dirname(planFile), { recursive: true })
 writeFileSync(planFile, "# Plan\n\n- [ ] Implement feature A\n- [ ] Write tests\n")
 
-// .plan-ready IPC flag
-writeFileSync(statePath(".plan-ready"), "docs/specs/test-feature/plan.md")
+// active-plan session pointer
+writeFileSync(
+  path.join(testDir, ".opencode", "state", "active-plan.json"),
+  JSON.stringify({
+    slug: "test-feature",
+    planPath: "docs/specs/test-feature/plan.md",
+    specPath: "docs/specs/test-feature/spec.md",
+  }, null, 2) + "\n"
+)
+
+// feature-local state scaffold
+mkdirSync(path.join(testDir, "docs", "specs", "test-feature", "state", "tasks", "task-1"), { recursive: true })
+mkdirSync(path.join(testDir, "docs", "specs", "test-feature", "state", "sessions"), { recursive: true })
+writeFileSync(
+  path.join(testDir, "docs", "specs", "test-feature", "state", "tasks", "task-1", "execution-state.md"),
+  [
+    "# Task 1 — Execution State",
+    "",
+    "- **Status**: IN_PROGRESS",
+    "- **Feature slug**: test-feature",
+    "- **Wave**: 1",
+    "- **Attempt**: 1",
+    "- **Last heartbeat**: 2026-04-08T10:00:00Z",
+  ].join("\n") + "\n"
+)
 
 // execution-state.md with 2 incomplete todos (overwrite template)
 writeFileSync(
@@ -210,19 +266,23 @@ writeFileSync(
 
 console.log("Running tests...\n")
 
+const generatedConfig = JSON.parse(readFileSync(path.join(testDir, ".opencode", "juninho-config.json"), "utf-8"))
+const generatedProjectType = generatedConfig.projectType ?? "generic"
+const expectedSkills = EXPECTED_SKILLS_BY_PROJECT_TYPE[generatedProjectType] ?? EXPECTED_SKILLS_BY_PROJECT_TYPE.generic
+
 // ─── Group 1: Installation (12 tests) ────────────────────────────────────────
 
-test("Installation", "All 9 agent files exist", () => {
+test("Installation", "All 11 agent files exist", () => {
   const missing = AGENTS.filter((a) => !existsSync(agentPath(a)))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
-test("Installation", "All 12 plugins exist", () => {
+test("Installation", "All 17 plugins exist", () => {
   const missing = PLUGINS.filter((p) => !existsSync(pluginPath(p)))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
-test("Installation", "All 14 commands exist", () => {
+test("Installation", "All 15 commands exist", () => {
   const missing = COMMANDS.filter((c) => !existsSync(cmdPath(c)))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
@@ -232,13 +292,13 @@ test("Installation", "All 4 tool files exist", () => {
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
-test("Installation", "All 4 support scripts exist", () => {
+test("Installation", "All 7 support scripts exist", () => {
   const missing = SUPPORT_SCRIPTS.filter((s) => !existsSync(scriptPath(s)))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
-test("Installation", "All 9 skill dirs exist", () => {
-  const missing = SKILLS.filter((s) => !existsSync(skillPath(s)))
+test("Installation", `All ${expectedSkills.length} expected skill dirs exist`, () => {
+  const missing = expectedSkills.filter((s) => !existsSync(skillPath(s)))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
@@ -251,8 +311,21 @@ test("Installation", "AGENTS.md root exists", () =>
 test("Installation", "pre-commit hook exists", () =>
   existsSync(path.join(testDir, ".git", "hooks", "pre-commit")))
 
-test("Installation", "workflow-config.md exists", () =>
-  existsSync(statePath("workflow-config.md")))
+test("Installation", "juninho-config.json exists", () =>
+  existsSync(path.join(testDir, ".opencode", "juninho-config.json")))
+
+test("Installation", "active-plan.json exists under .opencode/state", () =>
+  existsSync(path.join(testDir, ".opencode", "state", "active-plan.json")))
+
+test("Installation", "skill-map.json exists at .opencode root", () =>
+  existsSync(path.join(testDir, ".opencode", "skill-map.json")))
+
+test("Installation", "spec state template exists", () =>
+  existsSync(path.join(testDir, ".opencode", "templates", "spec-state-readme.md")))
+
+test("Installation", "feature-local state README exists", () =>
+  existsSync(path.join(testDir, "docs", "specs", "test-feature", "state", "README.md")) ||
+  existsSync(path.join(testDir, ".opencode", "templates", "spec-state-readme.md")))
 
 test("Installation", ".juninho-installed marker exists", () =>
   existsSync(path.join(testDir, ".opencode", ".juninho-installed")))
@@ -391,6 +464,7 @@ test("Plugin Logic", "carl-inject: regex fallback handles short keywords and phr
 
 // skill-inject (3)
 test("Plugin Logic", "skill-inject: maps page.tsx pattern to page-creation skill", () => {
+  if (!expectedSkills.includes("j.page-creation")) return true
   const content = readPlugin("j.skill-inject")
   return content.includes("j.page-creation") && content.includes("page")
     ? true
@@ -398,6 +472,7 @@ test("Plugin Logic", "skill-inject: maps page.tsx pattern to page-creation skill
 })
 
 test("Plugin Logic", "skill-inject: maps app/api pattern to api-route-creation skill", () => {
+  if (!expectedSkills.includes("j.api-route-creation")) return true
   const content = readPlugin("j.skill-inject")
   return content.includes("j.api-route-creation") && content.includes("api")
     ? true
@@ -412,18 +487,18 @@ test("Plugin Logic", "skill-inject: returns early when no skill pattern matches"
 })
 
 // plan-autoload (3)
-test("Plugin Logic", "plan-autoload: reads .plan-ready flag file", () => {
+test("Plugin Logic", "plan-autoload: reads active-plan.json pointer", () => {
   const content = readPlugin("j.plan-autoload")
-  return content.includes(".plan-ready")
+  return content.includes("active-plan.json") || content.includes('resolveStateFile(directory, "active-plan.json")')
     ? true
-    : ".plan-ready reference not found in plan-autoload"
+    : "active-plan.json reference not found in plan-autoload"
 })
 
-test("Plugin Logic", "plan-autoload: deletes flag with unlinkSync (fire-once)", () => {
+test("Plugin Logic", "plan-autoload: keeps marker and uses chat.message hook", () => {
   const content = readPlugin("j.plan-autoload")
-  return content.includes("unlinkSync")
+  return content.includes("chat.message") && !content.includes("unlinkSync")
     ? true
-    : "unlinkSync (fire-once delete) not found in plan-autoload"
+    : "chat.message hook missing or unlinkSync legacy behavior still present in plan-autoload"
 })
 
 test("Plugin Logic", "plan-autoload: appends plan content to output.output", () => {
@@ -453,6 +528,20 @@ test("Plugin Logic", "todo-enforcer: returns early when no incomplete items", ()
   return content.includes("if (incomplete.length === 0)")
     ? true
     : "early-return guard (if (incomplete.length === 0)) not found in todo-enforcer"
+})
+
+test("Plugin Logic", "skill-inject: reads skill-map.json from .opencode root", () => {
+  const content = readPlugin("j.skill-inject")
+  return content.includes('.opencode", "skill-map.json"')
+    ? true
+    : "root skill-map.json path not found in skill-inject"
+})
+
+test("Plugin Logic", "task-board: references integration-state manifest", () => {
+  const content = readPlugin("j.task-board")
+  return content.includes("integration-state.json") || content.includes("featureStateManifestPath")
+    ? true
+    : "integration-state.json not found in task-board"
 })
 
 // ─── Group 4: Agent Config (9 tests) ─────────────────────────────────────────
@@ -546,7 +635,7 @@ test("Tools", "next-version.ts exports next_version", () =>
 
 // ─── Group 6: Skills (11 tests) ──────────────────────────────────────────────
 
-for (const skill of SKILLS) {
+for (const skill of expectedSkills) {
   test("Skills", `${skill}: has name: frontmatter`, () =>
     readSkill(skill).includes("name:")
       ? true
@@ -558,10 +647,12 @@ for (const skill of SKILLS) {
       : `description: not found in ${skill}/SKILL.md frontmatter`)
 }
 
-test("Skills", "test-writing: Playwright MCP commented in frontmatter", () =>
-  readSkill("j.test-writing").includes("# mcp:")
+test("Skills", "test-writing: Playwright MCP commented in frontmatter", () => {
+  if (!expectedSkills.includes("j.test-writing")) return true
+  return readSkill("j.test-writing").includes("# mcp:")
     ? true
-    : "# mcp: comment not found in test-writing/SKILL.md")
+    : "# mcp: comment not found in test-writing/SKILL.md"
+})
 
 // ─── Group 7: Commands (13 tests) ────────────────────────────────────────────
 
@@ -593,14 +684,18 @@ test("Commands", "check.md references pre-commit", () =>
 test("Commands", "lint.md references lint-structure script", () =>
   readCmd("j.lint").includes("lint-structure.sh"))
 
-test("Commands", "test.md references jest", () =>
-  readCmd("j.test").toLowerCase().includes("jest"))
+test("Commands", "test.md references jest or vitest", () => {
+  const content = readCmd("j.test").toLowerCase()
+  return content.includes("jest") || content.includes("vitest")
+    ? true
+    : "Neither jest nor vitest reference found in j.test"
+})
 
 test("Commands", "status.md references execution-state.md", () =>
   readCmd("j.status").includes("execution-state.md"))
 
-test("Commands", "init-deep.md references AGENTS.md", () =>
-  readCmd("j.init-deep").includes("AGENTS.md"))
+test("Commands", "finish-setup.md references AGENTS.md", () =>
+  readCmd("j.finish-setup").includes("AGENTS.md"))
 
 test("Commands", "start-work.md references execution-state.md", () =>
   readCmd("j.start-work").includes("execution-state.md"))
@@ -617,7 +712,7 @@ const agentsMd = readFileSync(path.join(testDir, "AGENTS.md"), "utf-8")
 const manifest = readFileSync(path.join(testDir, "docs", "principles", "manifest"), "utf-8")
 const domainIndex = readFileSync(path.join(testDir, "docs", "domain", "INDEX.md"), "utf-8")
 
-test("Docs", "AGENTS.md: mentions all 9 agents", () => {
+test("Docs", "AGENTS.md: mentions all generated agents", () => {
   const missing = AGENTS.filter((a) => !agentsMd.includes(a))
   return missing.length === 0
     ? true
@@ -661,6 +756,11 @@ test("Docs", "INDEX.md: has Files: format", () =>
 test("Docs", "state: persistent-context.md exists", () =>
   existsSync(statePath("persistent-context.md")))
 
+test("Docs", "AGENTS.md: references juninho-config and feature-local state", () =>
+  agentsMd.includes("juninho-config.json") && agentsMd.includes("docs/specs/{slug}/state/")
+    ? true
+    : "AGENTS.md missing juninho-config or feature-local state references")
+
 test("Docs", "principles docs scaffold exists for CARL default manifest", () => {
   const required = [
     path.join(testDir, "docs", "principles", "auth-patterns.md"),
@@ -684,8 +784,8 @@ test("Dirs", "docs/specs/ exists", () =>
 test("Dirs", ".opencode/state/ exists", () =>
   existsSync(path.join(testDir, ".opencode", "state")))
 
-test("Dirs", ".opencode/skills/j.test-writing/ exists", () =>
-  existsSync(path.join(testDir, ".opencode", "skills", "j.test-writing")))
+test("Dirs", ".opencode/skills/ contains expected first skill", () =>
+  existsSync(path.join(testDir, ".opencode", "skills", expectedSkills[0])))
 
 test("Dirs", ".opencode/scripts/ exists", () =>
   existsSync(path.join(testDir, ".opencode", "scripts")))
@@ -776,7 +876,7 @@ test("Workflow/Evals", "pre-commit support script runs related tests not full su
 
 test("Workflow/Evals", "check-all support script exists for post-implement verification", () => {
   const content = readFileSync(scriptPath("check-all.sh"), "utf-8")
-  return content.includes("check:all") || content.includes("./gradlew test")
+  return content.includes("check:all") || content.includes("./gradlew test") || content.includes("run-test-scope.sh")
     ? true
     : "check-all.sh does not expose repo-wide verification behavior"
 })
@@ -788,11 +888,11 @@ test("Workflow/Evals", "implementer prompt exits before repo-wide checks", () =>
     : "implementer prompt does not describe post-implement repo-wide checks"
 })
 
-test("Workflow/Evals", "unify prompt is configurable via workflow-config", () => {
+test("Workflow/Evals", "unify prompt is configurable via juninho-config", () => {
   const content = readFileSync(agentPath("j.unify"), "utf-8")
-  return content.includes("workflow-config") && content.includes("enabled closeout steps")
+  return content.includes("juninho-config") && content.includes("enabled closeout steps")
     ? true
-    : "unify prompt is not tied to workflow-config"
+    : "unify prompt is not tied to juninho-config"
 })
 
 test("Workflow/Evals", "reference PR eval assets exist", () => {

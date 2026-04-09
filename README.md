@@ -14,7 +14,7 @@ npm install -g @kleber.mottajr/juninho
 # Navigate to your project
 cd my-opencode-project
 
-# Run setup — auto-detects project type
+# Run setup — auto-detects project type and asks you to choose strong/medium/weak models
 juninho setup
 
 # Or specify type explicitly
@@ -48,13 +48,13 @@ The framework orchestrates a multi-agent AI workflow for spec-driven development
 
 ### Specification & Planning
 
-`/j.spec` conducts a 5-phase interview (Discovery → Requirements → Contract → Data → Review) with background codebase and external research. `/j.plan` runs 3 phases: Metis (intent analysis), Prometheus (interview + decomposition), and Momus (executability review). Both require explicit developer approval.
+`/j.spec` conducts a 5-phase interview (Discovery → Requirements → Contract → Data → Review) with background codebase and external research. The approval step now uses a compact summary instead of dumping the full spec into the UI. `/j.plan` runs 3 phases: Metis (intent analysis), Prometheus (interview + decomposition), and Momus (executability review). Both require explicit developer approval.
 
 ![Spec & Plan Sequence](juninho-seq-spec-plan.png)
 
 ### Implementation, Verification & Closeout
 
-`/j.implement` executes wave-by-wave with git worktrees for parallelism. Each task follows the READ → ACT → COMMIT → VALIDATE loop. `@j.validator` gates every task against the spec. Pre-commit hooks run lint + related tests. `/j.check` runs repo-wide verification. `/j.unify` reconciles delivery, merges worktrees, updates docs, and creates a PR.
+`/j.implement` executes wave-by-wave with git worktrees for parallelism. Each task follows the READ → ACT → COMMIT → VALIDATE loop. `@j.validator` gates every task against the spec. Pre-commit hooks run lint + related tests. `/j.check` now runs repo-wide verification plus a detailed PR-style review report, and that report can be fed back into `/j.implement` for correction passes. `/j.unify` reconciles delivery, merges worktrees, updates docs, and creates a PR.
 
 ![Implement Sequence](juninho-seq-implement.png)
 
@@ -81,7 +81,7 @@ The framework orchestrates a multi-agent AI workflow for spec-driven development
 | `@j.implementer` | Medium | Wave execution, READ→ACT→COMMIT→VALIDATE |
 | `@j.validator` | Medium | Spec-first validation, BLOCK/FIX/NOTE/APPROVED |
 | `@j.plan-reviewer` | Medium | Executability gate for plans |
-| `@j.reviewer` | Medium | Post-PR advisory review (read-only) |
+| `@j.reviewer` | Medium | Detailed PR-style review, also used by `/j.check` |
 | `@j.unify` | Medium | Closeout: merge, docs, PR |
 | `@j.explore` | Weak | Read-only codebase research |
 | `@j.librarian` | Weak | External docs via Context7 + Context-Mode MCP |
@@ -111,16 +111,15 @@ Then patches `opencode.json` with agent definitions, Context7 MCP, and Context-M
 | `/j.spec` | Feature specification via 5-phase interview |
 | `/j.plan` | Strategic planning with 3-phase process |
 | `/j.implement` | Execute plan wave-by-wave with validation |
-| `/j.check` | Repo-wide verification (typecheck + lint + tests) |
+| `/j.check` | Repo-wide verification plus detailed review report |
 | `/j.unify` | Closeout: merge worktrees, update docs, create PR |
 | `/j.pr-review` | Advisory post-PR code review |
 | `/j.start-work` | Begin work session with context loading |
 | `/j.handoff` | End-of-session handoff document |
 | `/j.status` | Show execution state and task progress |
 | `/j.ulw-loop` | Ultra work loop (parallel implementation) |
-| `/j.init-deep` | Deep codebase initialization (AGENTS.md hierarchy) |
+| `/j.finish-setup` | Canonical bootstrap: AGENTS hierarchy, skills, and docs |
 | `/j.sync-docs` | Refresh domain/principles documentation |
-| `/j.finish-setup` | Scan codebase, generate dynamic skills + docs |
 | `/j.lint` | Run structure lint on staged files |
 | `/j.test` | Run tests related to staged files |
 

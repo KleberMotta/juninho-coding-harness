@@ -12,6 +12,12 @@ export function writePlugins(
   writeFileSync(path.join(pluginsDir, "j.env-protection.ts"), ENV_PROTECTION)
   writeFileSync(path.join(pluginsDir, "j.auto-format.ts"), AUTO_FORMAT)
   writeFileSync(path.join(pluginsDir, "j.plan-autoload.ts"), PLAN_AUTOLOAD)
+  writeFileSync(path.join(pluginsDir, "j.state-paths.ts"), STATE_PATHS)
+  writeFileSync(path.join(pluginsDir, "j.feature-state-paths.ts"), FEATURE_STATE_PATHS)
+  writeFileSync(path.join(pluginsDir, "j.juninho-config.ts"), JUNINHO_CONFIG)
+  writeFileSync(path.join(pluginsDir, "j.task-runtime.ts"), TASK_RUNTIME)
+  writeFileSync(path.join(pluginsDir, "j.task-board.ts"), TASK_BOARD)
+  writeFileSync(path.join(pluginsDir, "j.notify.ts"), NOTIFY)
   writeFileSync(path.join(pluginsDir, "j.carl-inject.ts"), CARL_INJECT)
   writeFileSync(path.join(pluginsDir, "j.skill-inject.ts"), skillInject(projectType, isKotlin))
   writeFileSync(path.join(pluginsDir, "j.intent-gate.ts"), INTENT_GATE)
@@ -24,10 +30,476 @@ export function writePlugins(
 
   // Write initial skill-map.json for dynamic extension by /j.finish-setup
   writeFileSync(
-    path.join(projectDir, ".opencode", "state", "skill-map.json"),
+    path.join(projectDir, ".opencode", "skill-map.json"),
     JSON.stringify(getBaseSkillMap(projectType, isKotlin), null, 2) + "\n",
   )
 }
+
+const STATE_PATHS = `import path from "path"
+
+export function resolveStateFile(directory: string, filename: string): string {
+  return path.join(directory, ".opencode", "state", filename)
+}
+`
+
+const FEATURE_STATE_PATHS = `import { mkdirSync } from "fs"
+import path from "path"
+
+export function featureStateDir(directory: string, featureSlug: string): string {
+  return path.join(directory, "docs", "specs", featureSlug, "state")
+}
+
+export function featureStateTaskDir(directory: string, featureSlug: string, taskID: string): string {
+  return path.join(featureStateDir(directory, featureSlug), "tasks", "task-" + taskID)
+}
+
+export function featureStateSessionsDir(directory: string, featureSlug: string): string {
+  return path.join(featureStateDir(directory, featureSlug), "sessions")
+}
+
+export function ensureFeatureStateStructure(directory: string, featureSlug: string): void {
+  mkdirSync(featureStateDir(directory, featureSlug), { recursive: true })
+  mkdirSync(path.join(featureStateDir(directory, featureSlug), "tasks"), { recursive: true })
+  mkdirSync(featureStateSessionsDir(directory, featureSlug), { recursive: true })
+}
+
+export function featureStateTaskPaths(directory: string, featureSlug: string, taskID: string) {
+  const taskDir = featureStateTaskDir(directory, featureSlug, taskID)
+  return {
+    taskDir,
+    statePath: path.join(taskDir, "execution-state.md"),
+    retryStatePath: path.join(taskDir, "retry-state.json"),
+    runtimePath: path.join(taskDir, "runtime.json"),
+    validatorPath: path.join(taskDir, "validator-work.md"),
+  }
+}
+
+export function featureStateSessionRuntimePath(directory: string, featureSlug: string, sessionID: string): string {
+  return path.join(featureStateSessionsDir(directory, featureSlug), sessionID + "-runtime.json")
+}
+
+export function featureStateImplementerLogPath(directory: string, featureSlug: string): string {
+  return path.join(featureStateDir(directory, featureSlug), "implementer-work.md")
+}
+
+export function featureStateManifestPath(directory: string, featureSlug: string): string {
+  return path.join(featureStateDir(directory, featureSlug), "integration-state.json")
+}
+
+export function featureStateReadmePath(directory: string, featureSlug: string): string {
+  return path.join(featureStateDir(directory, featureSlug), "README.md")
+}
+`
+
+const JUNINHO_CONFIG = `import { existsSync, readFileSync } from "fs"
+import path from "path"
+
+export type JuninhoConfig = {
+  strong?: string
+  medium?: string
+  weak?: string
+  projectType?: string
+  isKotlin?: boolean
+  buildTool?: string
+  workflow?: {
+    automation?: {
+      nonInteractive?: boolean
+      autoApproveArtifacts?: boolean
+    }
+    implement?: {
+      preCommitScope?: string
+      postImplementFullCheck?: boolean
+      reenterImplementOnFullCheckFailure?: boolean
+    }
+    unify?: {
+      enabled?: boolean
+      updatePersistentContext?: boolean
+      updateDomainDocs?: boolean
+      updateDomainIndex?: boolean
+      cleanupIntegratedTaskBranches?: boolean
+      createPullRequest?: boolean
+      createDeliveryPrBody?: boolean
+    }
+    documentation?: {
+      preferAgentsMdForLocalRules?: boolean
+      preferDomainDocsForBusinessBehavior?: boolean
+      preferPrincipleDocsForCrossCuttingTech?: boolean
+      syncMarkers?: boolean
+    }
+  }
+}
+
+const DEFAULT_CONFIG: JuninhoConfig = {
+  workflow: {
+    automation: {
+      nonInteractive: false,
+      autoApproveArtifacts: false,
+    },
+    implement: {
+      preCommitScope: "related",
+      postImplementFullCheck: true,
+      reenterImplementOnFullCheckFailure: true,
+    },
+    unify: {
+      enabled: true,
+      updatePersistentContext: true,
+      updateDomainDocs: true,
+      updateDomainIndex: true,
+      cleanupIntegratedTaskBranches: true,
+      createPullRequest: true,
+      createDeliveryPrBody: true,
+    },
+    documentation: {
+      preferAgentsMdForLocalRules: true,
+      preferDomainDocsForBusinessBehavior: true,
+      preferPrincipleDocsForCrossCuttingTech: true,
+      syncMarkers: true,
+    },
+  },
+}
+
+export function loadJuninhoConfig(directory: string): JuninhoConfig {
+  const configPath = path.join(directory, ".opencode", "juninho-config.json")
+  if (existsSync(configPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as JuninhoConfig
+      return {
+        ...DEFAULT_CONFIG,
+        ...parsed,
+        workflow: {
+          ...DEFAULT_CONFIG.workflow,
+          ...parsed.workflow,
+          automation: {
+            ...DEFAULT_CONFIG.workflow?.automation,
+            ...parsed.workflow?.automation,
+          },
+          implement: {
+            ...DEFAULT_CONFIG.workflow?.implement,
+            ...parsed.workflow?.implement,
+          },
+          unify: {
+            ...DEFAULT_CONFIG.workflow?.unify,
+            ...parsed.workflow?.unify,
+          },
+          documentation: {
+            ...DEFAULT_CONFIG.workflow?.documentation,
+            ...parsed.workflow?.documentation,
+          },
+        },
+      }
+    } catch {
+      // Fall through to defaults.
+    }
+  }
+
+  return DEFAULT_CONFIG
+}
+`
+
+const TASK_RUNTIME = `import type { Plugin } from "@opencode-ai/plugin"
+import { mkdirSync, writeFileSync } from "fs"
+import path from "path"
+import {
+  ensureFeatureStateStructure,
+  featureStateSessionRuntimePath,
+  featureStateTaskPaths,
+} from "./j.feature-state-paths"
+
+type RuntimeTaskMetadata = {
+  featureSlug: string
+  taskID: string
+  attempt: number
+  statePath: string
+  retryStatePath: string
+  runtimePath: string
+  worktreeDirectory?: string
+  parentSessionID: string
+  ownerSessionID?: string
+  ownerSessionTitle?: string
+  originalPrompt: string
+}
+
+function extractFeatureSlug(prompt: string): string | null {
+  return prompt.match(/docs\/specs\/([^/]+)\//)?.[1] ?? null
+}
+
+function extractTaskID(prompt: string): string | null {
+  return prompt.match(/(?:Execute|Validate) task\s+(\d+)\b/i)?.[1] ?? null
+}
+
+function extractAttempt(prompt: string): number {
+  const raw = prompt.match(/Attempt:\s*(\d+)/i)?.[1]
+  return raw ? Number.parseInt(raw, 10) : 1
+}
+
+function extractWorktreeDirectory(prompt: string, directory: string): string | undefined {
+  const raw = prompt.match(/worktree\s+([^:\n]+)/i)?.[1]?.trim()
+  if (!raw) return undefined
+  return path.isAbsolute(raw) ? raw : path.join(directory, raw)
+}
+
+function buildMetadata(directory: string, parentSessionID: string, prompt: string): RuntimeTaskMetadata | null {
+  const featureSlug = extractFeatureSlug(prompt)
+  const taskID = extractTaskID(prompt)
+  if (!featureSlug || !taskID) return null
+
+  ensureFeatureStateStructure(directory, featureSlug)
+  const taskPaths = featureStateTaskPaths(directory, featureSlug, taskID)
+  mkdirSync(taskPaths.taskDir, { recursive: true })
+
+  return {
+    featureSlug,
+    taskID,
+    attempt: extractAttempt(prompt),
+    statePath: taskPaths.statePath,
+    retryStatePath: taskPaths.retryStatePath,
+    runtimePath: taskPaths.runtimePath,
+    worktreeDirectory: extractWorktreeDirectory(prompt, directory),
+    parentSessionID,
+    originalPrompt: prompt,
+  }
+}
+
+function sessionRuntimePath(directory: string, metadata: RuntimeTaskMetadata, sessionID: string): string {
+  return featureStateSessionRuntimePath(directory, metadata.featureSlug, sessionID)
+}
+
+function writeMetadata(filePath: string, metadata: RuntimeTaskMetadata): void {
+  writeFileSync(filePath, JSON.stringify(metadata, null, 2) + "\n", "utf-8")
+}
+
+export default (async ({ directory }: { directory: string }) => {
+  const pendingByParent = new Map<string, RuntimeTaskMetadata[]>()
+
+  return {
+    "tool.execute.before": async (
+      input: { tool: string; sessionID: string; callID: string },
+      output: { args: Record<string, unknown> }
+    ) => {
+      if (input.tool !== "Task" && input.tool !== "task") return
+
+      const prompt = typeof output.args?.prompt === "string" ? output.args.prompt : ""
+      const metadata = buildMetadata(directory, input.sessionID, prompt)
+      if (!metadata) return
+
+      const queue = pendingByParent.get(input.sessionID) ?? []
+      queue.push(metadata)
+      pendingByParent.set(input.sessionID, queue)
+    },
+
+    event: async ({ event }: { event: { type: string; properties?: Record<string, unknown> } }) => {
+      if (event.type !== "session.created") return
+
+      const sessionID = typeof event.properties?.sessionID === "string" ? event.properties.sessionID : undefined
+      const info = typeof event.properties?.info === "object" && event.properties.info
+        ? (event.properties.info as Record<string, unknown>)
+        : undefined
+      const parentID = typeof info?.parentID === "string" ? info.parentID : undefined
+      const title = typeof info?.title === "string" ? info.title : ""
+
+      if (!sessionID || !parentID) return
+
+      const queue = pendingByParent.get(parentID)
+      if (!queue || queue.length === 0) return
+
+      const titleTaskID = extractTaskID(title)
+      const index = titleTaskID ? queue.findIndex((item) => item.taskID === titleTaskID) : 0
+      const resolvedIndex = index >= 0 ? index : 0
+      const [metadata] = queue.splice(resolvedIndex, 1)
+      if (!metadata) return
+
+      if (queue.length > 0) pendingByParent.set(parentID, queue)
+      else pendingByParent.delete(parentID)
+
+      const resolvedMetadata: RuntimeTaskMetadata = {
+        ...metadata,
+        ownerSessionID: sessionID,
+        ownerSessionTitle: title || undefined,
+      }
+
+      writeMetadata(metadata.runtimePath, resolvedMetadata)
+      writeMetadata(sessionRuntimePath(directory, metadata, sessionID), resolvedMetadata)
+    },
+  }
+}) satisfies Plugin
+`
+
+const TASK_BOARD = `import type { Plugin } from "@opencode-ai/plugin"
+import { existsSync, readFileSync } from "fs"
+import path from "path"
+import { featureStateManifestPath, featureStateTaskPaths } from "./j.feature-state-paths"
+import { resolveStateFile } from "./j.state-paths"
+
+type TaskBoardRow = {
+  id: string
+  name: string
+  wave: string
+  depends: string
+  status: string
+  attempt: string
+  heartbeat: string
+  retryCount: string
+  validatedCommit: string
+  featureCommit: string
+  integrationStatus: string
+}
+
+function getActiveFeatureSlug(directory: string): string | null {
+  const statePath = resolveStateFile(directory, "execution-state.md")
+  if (!existsSync(statePath)) return null
+
+  const content = readFileSync(statePath, "utf-8")
+  return content.match(/\*\*Feature slug\*\*:\s*(?:\`)?([^\`\s]+)/)?.[1] ?? null
+}
+
+function parsePlan(planPath: string): Array<{ id: string; name: string; wave: string; depends: string }> {
+  if (!existsSync(planPath)) return []
+  const content = readFileSync(planPath, "utf-8")
+  const tasks = Array.from(content.matchAll(/<task id="([^"]+)" wave="([^"]+)" agent="[^"]+" depends="([^"]*)">([\s\S]*?)<\/task>/g))
+
+  return tasks.map((match) => ({
+    id: match[1],
+    wave: match[2],
+    depends: match[3] || "-",
+    name: match[4].match(/<n>([\s\S]*?)<\/n>/)?.[1]?.trim() ?? "Task " + match[1],
+  }))
+}
+
+function readStateValue(content: string, label: string): string {
+  return content.match(new RegExp("- \\*\\*" + label + "\\*\\*:\\s*([^\\n]+)"))?.[1]?.trim() ?? "-"
+}
+
+function readRetryCount(retryPath: string): string {
+  if (!existsSync(retryPath)) return "0"
+  try {
+    const parsed = JSON.parse(readFileSync(retryPath, "utf-8")) as { autoRetryCount?: number }
+    return typeof parsed.autoRetryCount === "number" ? String(parsed.autoRetryCount) : "0"
+  } catch {
+    return "0"
+  }
+}
+
+function buildBoard(directory: string): string | null {
+  const slug = getActiveFeatureSlug(directory)
+  if (!slug) return null
+
+  const featureDir = path.join(directory, "docs", "specs", slug)
+  const planPath = path.join(featureDir, "plan.md")
+  const integrationPath = featureStateManifestPath(directory, slug)
+  if (!existsSync(planPath)) return null
+
+  const planTasks = parsePlan(planPath)
+  if (planTasks.length === 0) return null
+
+  let integrationManifest: { tasks?: Record<string, any> } | null = null
+  if (existsSync(integrationPath)) {
+    try {
+      integrationManifest = JSON.parse(readFileSync(integrationPath, "utf-8")) as { tasks?: Record<string, any> }
+    } catch {
+      integrationManifest = null
+    }
+  }
+
+  const rows: TaskBoardRow[] = planTasks.map((task) => {
+    const taskPaths = featureStateTaskPaths(directory, slug, task.id)
+    const content = existsSync(taskPaths.statePath) ? readFileSync(taskPaths.statePath, "utf-8") : ""
+    const integrationEntry = integrationManifest?.tasks?.[task.id]
+
+    return {
+      id: task.id,
+      name: task.name,
+      wave: task.wave,
+      depends: task.depends,
+      status: content ? readStateValue(content, "Status") : "PENDING",
+      attempt: content ? readStateValue(content, "Attempt") : "-",
+      heartbeat: content ? readStateValue(content, "Last heartbeat") : "-",
+      retryCount: readRetryCount(taskPaths.retryStatePath),
+      validatedCommit: integrationEntry?.validatedCommit ?? "-",
+      featureCommit: integrationEntry?.integration?.integratedCommit ?? "-",
+      integrationStatus: integrationEntry?.integration?.method
+        ? String(integrationEntry.integration.status ?? "pending") + "/" + String(integrationEntry.integration.method)
+        : integrationEntry?.integration?.status ?? "pending",
+    }
+  })
+
+  return [
+    "[task-board] Feature: " + slug,
+    "",
+    "| ID | Wave | Depends | Status | Attempt | Retries | Validated Commit | Feature Commit | Integration | Heartbeat | Task |",
+    "|----|------|---------|--------|---------|---------|------------------|----------------|-------------|-----------|------|",
+    ...rows.map((row) =>
+      "| " + row.id + " | " + row.wave + " | " + row.depends + " | " + row.status + " | " + row.attempt + " | " + row.retryCount + " | " + row.validatedCommit + " | " + row.featureCommit + " | " + row.integrationStatus + " | " + row.heartbeat + " | " + row.name + " |"
+    ),
+  ].join("\n")
+}
+
+export default (async ({ directory }: { directory: string }) => {
+  const lastBoardBySession = new Map<string, string>()
+
+  return {
+    "tool.execute.after": async (
+      input: { tool: string; sessionID: string; callID: string; args: any },
+      output: { title: string; output: string; metadata: any }
+    ) => {
+      const board = buildBoard(directory)
+      if (!board) return
+      if (lastBoardBySession.get(input.sessionID) === board) return
+
+      lastBoardBySession.set(input.sessionID, board)
+      output.output += "\n\n" + board
+    },
+    "experimental.session.compacting": async (
+      _input: { sessionID?: string },
+      output: { context: string[] }
+    ) => {
+      const board = buildBoard(directory)
+      if (!board) return
+
+      output.context.push(board)
+    },
+  }
+}) satisfies Plugin
+`
+
+const NOTIFY = `import type { Plugin } from "@opencode-ai/plugin"
+import { execFileSync } from "child_process"
+import { platform } from "os"
+
+const TITLE = "opencode"
+
+function escapeAppleScript(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\"/g, '\\\"')
+}
+
+function sendNotification(message: string): void {
+  try {
+    const os = platform()
+    if (os === "darwin") {
+      const script = 'display notification "' + escapeAppleScript(message) + '" with title "' + TITLE + '" sound name "Glass"'
+      execFileSync("osascript", ["-e", script], {
+        stdio: "ignore",
+        timeout: 5000,
+      })
+      return
+    }
+    if (os === "linux") {
+      execFileSync("notify-send", [TITLE, message, "--expire-time=5000"], {
+        stdio: "ignore",
+        timeout: 5000,
+      })
+    }
+  } catch {
+    // Never block the session on notification failures.
+  }
+}
+
+export default (async (_ctx: { directory: string }) => ({
+  "session.idle": async (_input: Record<string, unknown>, output: { metadata?: Record<string, unknown> }) => {
+    const reason = typeof output.metadata?.reason === "string" ? output.metadata.reason : "idle session detected"
+    sendNotification(reason)
+  },
+})) satisfies Plugin
+`
 
 // ─── Env Protection ──────────────────────────────────────────────────────────
 
@@ -112,57 +584,75 @@ export default (async ({ directory: _directory }: { directory: string }) => ({
 // ─── Plan Autoload ────────────────────────────────────────────────────────────
 
 const PLAN_AUTOLOAD = `import type { Plugin } from "@opencode-ai/plugin"
-import { existsSync, readFileSync, unlinkSync } from "fs"
+import { existsSync, readFileSync } from "fs"
 import path from "path"
+import { resolveStateFile } from "./j.state-paths"
 
-// Injects active plan into agent context when a .plan-ready IPC flag exists.
-// Uses tool.execute.after on Read — the first Read triggers plan injection.
-// Also uses experimental.session.compacting to survive session compaction.
-// The .plan-ready flag is deleted after first injection (fire-once).
+// Injects active plan into agent context when an active-plan state pointer exists.
+// Uses chat.message for initial injection, tool.execute.after(Read) as a
+// fallback, and experimental.session.compacting to survive session compaction.
+// The active-plan pointer stays on disk so later messages, compaction, and
+// write-time guards can all resolve the same active plan consistently.
 
 export default (async ({ directory }: { directory: string }) => {
-  let planInjected = false
+  const planInjectedSessions = new Set<string>()
+
+  function loadActivePlan(): { planPath: string; planContent: string } | null {
+    const activePlanFile = resolveStateFile(directory, "active-plan.json")
+    if (!existsSync(activePlanFile)) return null
+
+    const state = JSON.parse(readFileSync(activePlanFile, "utf-8")) as { planPath?: string }
+    const planPath = state.planPath?.trim()
+    if (!planPath) return null
+    const fullPath = path.isAbsolute(planPath) ? planPath : path.join(directory, planPath)
+    if (!existsSync(fullPath)) return null
+
+    return { planPath, planContent: readFileSync(fullPath, "utf-8") }
+  }
+
+  function renderPlan(planPath: string, planContent: string): string {
+    return (
+      \`[plan-autoload] Active plan detected at \${planPath}:\\n\\n\${planContent}\\n\\n\` +
+      \`Use /j.implement to execute this plan, or /j.plan to revise it.\`
+    )
+  }
 
   return {
+    "chat.message": async (
+      input: { sessionID: string },
+      output: { message: { system?: string }; parts: unknown[] }
+    ) => {
+      if (planInjectedSessions.has(input.sessionID)) return
+
+      const loaded = loadActivePlan()
+      if (!loaded) return
+
+      planInjectedSessions.add(input.sessionID)
+      output.message.system = output.message.system
+        ? output.message.system + "\\n\\n" + renderPlan(loaded.planPath, loaded.planContent)
+        : renderPlan(loaded.planPath, loaded.planContent)
+    },
     "tool.execute.after": async (
       input: { tool: string; sessionID: string; callID: string; args: any },
       output: { title: string; output: string; metadata: any }
     ) => {
-      if (input.tool !== "Read" || planInjected) return
+      if (input.tool !== "Read" || planInjectedSessions.has(input.sessionID)) return
 
-      const readyFile = path.join(directory, ".opencode", "state", ".plan-ready")
-      if (!existsSync(readyFile)) return
+      const loaded = loadActivePlan()
+      if (!loaded) return
 
-      const planPath = readFileSync(readyFile, "utf-8").trim()
-      const fullPath = path.isAbsolute(planPath) ? planPath : path.join(directory, planPath)
-      if (!existsSync(fullPath)) return
-
-      const planContent = readFileSync(fullPath, "utf-8")
-      planInjected = true
-
-      try { unlinkSync(readyFile) } catch { /* ok */ }
-
-      output.output +=
-        \`\\n\\n[plan-autoload] Active plan detected at \${planPath}:\\n\\n\${planContent}\\n\\n\` +
-        \`Use /j.implement to execute this plan, or /j.plan to revise it.\`
+      planInjectedSessions.add(input.sessionID)
+      output.output += "\\n\\n" + renderPlan(loaded.planPath, loaded.planContent)
     },
 
     "experimental.session.compacting": async (
       _input: { sessionID?: string },
       output: { context: string[] }
     ) => {
-      // Ensure plan survives session compaction
-      const readyFile = path.join(directory, ".opencode", "state", ".plan-ready")
-      if (existsSync(readyFile)) {
-        const planPath = readFileSync(readyFile, "utf-8").trim()
-        const fullPath = path.isAbsolute(planPath) ? planPath : path.join(directory, planPath)
-        if (existsSync(fullPath)) {
-          const planContent = readFileSync(fullPath, "utf-8")
-          output.context.push(
-            \`[plan-autoload] Active plan at \${planPath}:\\n\\n\${planContent}\`
-          )
-        }
-      }
+      const loaded = loadActivePlan()
+      if (!loaded) return
+
+      output.context.push(renderPlan(loaded.planPath, loaded.planContent))
     },
   }
 }) satisfies Plugin
@@ -573,13 +1063,13 @@ function skillInject(projectType: ProjectType, isKotlin: boolean): string {
     'import path from "path"',
     '',
     '// Injects skill instructions via tool.execute.after on Read + Write.',
-    '// SKILL_MAP is loaded from .opencode/state/skill-map.json for dynamic',
+    '// SKILL_MAP is loaded from .opencode/skill-map.json for dynamic',
     '// extension by /j.finish-setup. Falls back to hardcoded base patterns.',
     '',
     'interface SkillMapEntry { pattern: string; skill: string }',
     '',
     'function loadSkillMap(directory: string): Array<{ pattern: RegExp; skill: string }> {',
-    '  const mapPath = path.join(directory, ".opencode", "state", "skill-map.json")',
+    '  const mapPath = path.join(directory, ".opencode", "skill-map.json")',
     '  let entries: SkillMapEntry[] = []',
     '',
     '  if (existsSync(mapPath)) {',
@@ -642,6 +1132,7 @@ function skillInject(projectType: ProjectType, isKotlin: boolean): string {
 const INTENT_GATE = `import type { Plugin } from "@opencode-ai/plugin"
 import { existsSync, readFileSync } from "fs"
 import path from "path"
+import { resolveStateFile } from "./j.state-paths"
 
 // Scope-guard: after any Write/Edit, checks if the modified file is part of
 // the current plan. If it drifts outside the plan scope, appends a warning.
@@ -660,8 +1151,51 @@ function extractPlanFiles(planContent: string): Set<string> {
   return files
 }
 
+function loadActivePlanContent(directory: string): string | null {
+  const activePlanPath = resolveStateFile(directory, "active-plan.json")
+  if (existsSync(activePlanPath)) {
+    const declaredPath = JSON.parse(readFileSync(activePlanPath, "utf-8")).planPath?.trim()
+    if (!declaredPath) return null
+    const resolvedPath = path.isAbsolute(declaredPath)
+      ? declaredPath
+      : path.join(directory, declaredPath)
+    if (existsSync(resolvedPath)) {
+      return readFileSync(resolvedPath, "utf-8")
+    }
+  }
+
+  const statePath = resolveStateFile(directory, "execution-state.md")
+  if (!existsSync(statePath)) return null
+
+  const stateContent = readFileSync(statePath, "utf-8")
+  const planMatch = stateContent.match(/\\*\\*Plan\\*\\*:\\s*(?:\`)?([^\`\\n\\s]+)(?:\`)?/)
+  const declaredPlan = planMatch?.[1]?.trim()
+  if (!declaredPlan) return null
+
+  const resolvedPlan = path.isAbsolute(declaredPlan)
+    ? declaredPlan
+    : path.join(directory, declaredPlan)
+  if (!existsSync(resolvedPlan)) return null
+
+  return readFileSync(resolvedPlan, "utf-8")
+}
+
 export default (async ({ directory }: { directory: string }) => {
-  let planFiles: Set<string> | null = null
+  const planFilesBySession = new Map<string, Set<string>>()
+
+  function getPlanFiles(sessionID: string): Set<string> {
+    const existing = planFilesBySession.get(sessionID)
+    if (existing) return existing
+
+    const planFiles = new Set<string>()
+    const content = loadActivePlanContent(directory)
+    if (content) {
+      for (const file of extractPlanFiles(content)) planFiles.add(file)
+    }
+
+    planFilesBySession.set(sessionID, planFiles)
+    return planFiles
+  }
 
   return {
     "tool.execute.after": async (
@@ -673,19 +1207,7 @@ export default (async ({ directory }: { directory: string }) => {
       const filePath: string = input.args?.path ?? input.args?.file_path ?? ""
       if (!filePath) return
 
-      // Lazy-load plan files on first Write/Edit
-      if (planFiles === null) {
-        planFiles = new Set<string>()
-        const planDir = path.join(directory, ".opencode", "state")
-        // Try multiple plan file names
-        for (const name of ["plan.md", "plan-ready.md"]) {
-          const planPath = path.join(planDir, name)
-          if (existsSync(planPath)) {
-            const content = readFileSync(planPath, "utf-8")
-            for (const f of extractPlanFiles(content)) planFiles.add(f)
-          }
-        }
-      }
+      const planFiles = getPlanFiles(input.sessionID)
 
       // No plan loaded — nothing to guard
       if (planFiles.size === 0) return
@@ -710,25 +1232,109 @@ export default (async ({ directory }: { directory: string }) => {
 // ─── Todo Enforcer ────────────────────────────────────────────────────────────
 
 const TODO_ENFORCER = `import type { Plugin } from "@opencode-ai/plugin"
-import { existsSync, readFileSync } from "fs"
+import { existsSync, readFileSync, readdirSync } from "fs"
 import path from "path"
+import { featureStateTaskDir } from "./j.feature-state-paths"
+import { resolveStateFile } from "./j.state-paths"
 
 // Re-injects incomplete tasks to prevent the agent from forgetting pending work.
+// Three sources of truth (checked in order):
+//   1. .opencode/state/execution-state.md — global session summary
+//   2. docs/specs/{slug}/state/tasks/task-*/execution-state.md — per-task state files
+//
 // Two hooks:
 //   experimental.session.compacting — injects pending tasks into compaction
 //     context so they survive context window resets.
 //   tool.execute.after on Write/Edit — lean reminder of pending count after
 //     file modifications, nudging the agent to continue.
 
-function getIncompleteTasks(directory: string): string[] {
-  const statePath = path.join(directory, ".opencode", "state", "execution-state.md")
-  if (!existsSync(statePath)) return []
-
-  const state = readFileSync(statePath, "utf-8")
-  return state
+function getIncompleteFromFile(filePath: string): string[] {
+  if (!existsSync(filePath)) return []
+  const content = readFileSync(filePath, "utf-8")
+  return content
     .split("\\n")
     .filter((line) => /^\\s*-\\s*\\[\\s*\\]/.test(line))
     .map((line) => line.trim())
+}
+
+function parseTaskState(filePath: string): string | null {
+  if (!existsSync(filePath)) return null
+
+  const content = readFileSync(filePath, "utf-8")
+  const statusMatch = content.match(/- \*\*Status\*\*:\s*([^\n]+)/)
+  const waveMatch = content.match(/- \*\*Wave\*\*:\s*([^\n]+)/)
+  const attemptMatch = content.match(/- \*\*Attempt\*\*:\s*([^\n]+)/)
+  const heartbeatMatch = content.match(/- \*\*Last heartbeat\*\*:\s*([^\n]+)/)
+  const failureMatch = content.match(/## Failure Details \(if FAILED\/BLOCKED\)\n([\s\S]*)$/)
+  const fileNameMatch = filePath.match(/tasks\/task-(\d+)\/execution-state\.md$/)
+
+  const taskID = fileNameMatch?.[1] ?? "?"
+  const status = statusMatch?.[1]?.trim()
+  if (!status || status === "COMPLETE") return null
+
+  const wave = waveMatch?.[1]?.trim() ?? "?"
+  const attempt = attemptMatch?.[1]?.trim() ?? "1"
+  const heartbeat = heartbeatMatch?.[1]?.trim()
+  const failure = failureMatch?.[1]?.trim()
+
+  let summary = "- [ ] Task " + taskID + " (wave " + wave + ", attempt " + attempt + ") — " + status
+  if (heartbeat) summary += " — heartbeat " + heartbeat
+  if (status === "FAILED" || status === "BLOCKED") {
+    const detail = failure && failure !== "None." ? failure.split("\\n")[0].trim() : "see task state"
+    summary += " — " + detail
+  }
+
+  return summary
+}
+
+function getActiveFeatureSlug(directory: string): string | null {
+  const statePath = resolveStateFile(directory, "execution-state.md")
+  if (!existsSync(statePath)) return null
+
+  const content = readFileSync(statePath, "utf-8")
+  const planMatch = content.match(/\*\*Plan\*\*:\s*(?:\`)?(?:docs\/specs\/([^/\`\s]+)\/plan\.md)/)
+  if (planMatch) return planMatch[1]
+
+  const slugMatch = content.match(/\*\*Feature slug\*\*:\s*(?:\`)?([^\`\s]+)/)
+  if (slugMatch) return slugMatch[1]
+
+  return null
+}
+
+function getPerTaskIncomplete(directory: string, slug: string): string[] {
+  const tasksDir = path.join(directory, "docs", "specs", slug, "state", "tasks")
+  if (!existsSync(tasksDir)) return []
+
+  const tasks: string[] = []
+  try {
+    const taskDirs = readdirSync(tasksDir).filter((f) => f.startsWith("task-"))
+    for (const taskDirName of taskDirs) {
+      const taskDir = featureStateTaskDir(directory, slug, taskDirName.replace(/^task-/, ""))
+      const summary = parseTaskState(path.join(taskDir, "execution-state.md"))
+      if (summary) tasks.push(summary)
+    }
+  } catch {
+    // Directory read failed — silently skip
+  }
+  return tasks
+}
+
+function getIncompleteTasks(directory: string): string[] {
+  const globalPath = resolveStateFile(directory, "execution-state.md")
+  const globalTasks = getIncompleteFromFile(globalPath)
+
+  const slug = getActiveFeatureSlug(directory)
+  const perTaskTasks = slug ? getPerTaskIncomplete(directory, slug) : []
+
+  const seen = new Set<string>()
+  const all: string[] = []
+  for (const task of [...globalTasks, ...perTaskTasks]) {
+    if (!seen.has(task)) {
+      seen.add(task)
+      all.push(task)
+    }
+  }
+  return all
 }
 
 export default (async ({ directory }: { directory: string }) => ({

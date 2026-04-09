@@ -250,14 +250,14 @@ Project type: **${stackLabel}**
 /j.spec → docs/specs/{slug}/spec.md (approved)
   → /j.plan → docs/specs/{slug}/plan.md (approved)
   → /j.implement → @j.validator gates task work
-  → /j.check → /j.unify (if enabled by workflow-config)
+  → /j.check → /j.unify (if enabled by juninho-config workflow)
 \`\`\`
 
 **Path B — Plan-driven (lightweight tasks):**
 \`\`\`
 /j.plan → plan.md (approved) → plan-autoload injects on next session
   → /j.implement → @j.validator gates task work
-  → /j.check → /j.unify (if enabled by workflow-config)
+  → /j.check → /j.unify (if enabled by juninho-config workflow)
 \`\`\`
 
 ## Commands
@@ -267,18 +267,17 @@ Project type: **${stackLabel}**
 | \`/j.spec <feature>\` | 5-phase interview → \`docs/specs/{slug}/spec.md\` |
 | \`/j.plan <goal>\` | 3-phase pipeline (Metis→Prometheus→Momus) → \`plan.md\` approved |
 | \`/j.implement\` | Execute active plan until code + task-level tests are green |
-| \`/j.check\` | Run repo-wide verification after implementation exits |
+| \`/j.check\` | Run repo-wide verification plus detailed PR-style review |
 | \`/j.lint\` | Run structure lint used by the pre-commit path |
 | \`/j.test\` | Run change-scoped tests used by the pre-commit path |
 | \`/j.sync-docs\` | Refresh AGENTS, domain docs, and principle docs from code |
+| \`/j.finish-setup\` | Bootstrap repo knowledge: AGENTS hierarchy, dynamic skills, domain/principles docs |
 | \`/j.pr-review\` | Advisory review of current branch diff |
 | \`/j.status\` | Show \`execution-state.md\` summary |
-| \`/j.unify\` | Reconcile, update docs, merge worktrees, create PR |
+| \`/j.unify\` | Reconcile, update docs, cleanup integrated worktrees, create PR |
 | \`/j.start-work <task>\` | Initialize a focused work session |
 | \`/j.handoff\` | Prepare end-of-session handoff doc |
-| \`/j.init-deep\` | Generate hierarchical AGENTS.md + populate domain docs |
 | \`/j.ulw-loop\` | Maximum parallelism mode |
-| \`/j.finish-setup\` | Scan codebase, generate dynamic skills from file patterns, populate domain/principles docs |
 
 ## Agent Roster
 
@@ -298,18 +297,19 @@ Writes to \`docs/specs/{feature-slug}/spec.md\`.
 ### @j.implementer
 READ→ACT→COMMIT→VALIDATE loop. Wave-based with git worktrees for parallel tasks.
 Pre-commit stays fast: structure lint + related tests. Hashline-aware editing.
+Writes canonical state to \`docs/specs/{slug}/state/**\`, caps parallelism at 2 tasks, and integrates approved task commits into \`feature/{slug}\` during implementation.
 Repo-wide checks happen after implementer exits.
 
 ### @j.validator
 Reads spec BEFORE code. BLOCK / FIX / NOTE / APPROVED.
-Can fix FIX-tier issues directly. Writes audit trail to \`validator-work.md\`.
+Can fix FIX-tier issues directly. Writes per-task audit trail to \`docs/specs/{slug}/state/tasks/task-{id}/validator-work.md\`.
 
 ### @j.reviewer
-Post-PR advisory review. Read-only, never blocks. Use via \`/j.pr-review\`.
+Detailed read-only reviewer. Used via \`/j.pr-review\` and by \`/j.check\` to generate actionable follow-up findings.
 
 ### @j.unify
-Closes the loop according to \`.opencode/state/workflow-config.md\`.
-Can update docs, merge worktrees, and create PRs when those steps are enabled.
+Closes the loop according to \`.opencode/juninho-config.json\` under \`workflow\`.
+Can update docs, cleanup integrated task worktrees/branches, and create PRs when those steps are enabled.
 
 ### @j.explore
 Fast read-only codebase research. Spawned by planner Phase 1.
@@ -327,7 +327,7 @@ Fetches official API docs via Context7 MCP and context-mode MCP.
 | 2 | \`j.carl-inject\` — content-aware principles + domain docs | Read time + compaction survival |
 | 3 | \`j.skill-inject\` — file pattern → SKILL.md | Read/Write around matching files |
 | 4 | \`<skills>\` declaration in \`plan.md\` task | Explicit per-task requirement |
-| 5 | State files in \`.opencode/state/\` | Runtime, inter-session |
+| 5 | Session state in \`.opencode/state/\` + feature state in \`docs/specs/{slug}/state/\` | Runtime, inter-session, per-task orchestration |
 
 ## Plugins (auto-discovered by OpenCode)
 
@@ -337,6 +337,12 @@ Fetches official API docs via Context7 MCP and context-mode MCP.
 | \`j.env-protection\` | Any tool | Block sensitive file reads/writes |
 | \`j.auto-format\` | Write/Edit | Auto-format after file changes |
 | \`j.plan-autoload\` | Read + compaction | Inject active plan into context |
+| \`j.state-paths\` | Shared helper | Resolve global session state files |
+| \`j.feature-state-paths\` | Shared helper | Resolve feature-local state files |
+| \`j.juninho-config\` | Shared helper | Load \`juninho-config.json\` with workflow defaults |
+| \`j.task-runtime\` | Task spawn + session created | Persist task/session runtime metadata |
+| \`j.task-board\` | Tool after + compaction | Append per-task board from feature state |
+| \`j.notify\` | Session idle | Non-blocking local notification on stalls/idleness |
 | \`j.carl-inject\` | Read + compaction | Inject principles + domain docs from file/task context |
 | \`j.skill-inject\` | Read/Write | Inject skill by file pattern |
 | \`j.intent-gate\` | Write/Edit | Warn when edits drift outside the plan |
@@ -371,22 +377,28 @@ ${skillsTable(projectType, isKotlin)}
 
 | File | Purpose |
 |------|---------|
-| \`.opencode/state/persistent-context.md\` | Long-term project knowledge — updated by UNIFY |
-| \`.opencode/state/execution-state.md\` | Per-feature task table — updated by implementer and UNIFY |
-| \`.opencode/state/validator-work.md\` | Validator audit trail — BLOCK/FIX/NOTE per pass |
-| \`.opencode/state/implementer-work.md\` | Implementer decisions and blockers log |
-| \`.opencode/state/workflow-config.md\` | Controls handoff, doc sync, and configurable UNIFY behavior |
-| \`.opencode/state/skill-map.json\` | Dynamic skill-to-pattern mapping — extended by /j.finish-setup |
-| \`.opencode/state/.plan-ready\` | Transient IPC flag — plan path, consumed by plan-autoload |
+| \`.opencode/juninho-config.json\` | Models plus \`workflow\` toggles for automation, implement, unify, and documentation behavior |
+| \`.opencode/state/active-plan.json\` | Session-level pointer to the active spec/plan bundle — consumed by plan-autoload and write-time guards |
+| \`.opencode/skill-map.json\` | Dynamic skill-to-pattern mapping — extended by /j.finish-setup |
+| \`.opencode/state/persistent-context.md\` | Long-term project knowledge — reconciled by UNIFY |
+| \`.opencode/state/execution-state.md\` | Global session summary — active goal, plan path, session log |
+| \`docs/specs/{slug}/state/implementer-work.md\` | Feature-local implementer log (append-only) |
+| \`docs/specs/{slug}/state/check-review.md\` | Latest repo-wide check + detailed review findings for follow-up corrections |
+| \`docs/specs/{slug}/state/tasks/task-{id}/execution-state.md\` | Per-task lease, heartbeat, status, validated commit |
+| \`docs/specs/{slug}/state/tasks/task-{id}/validator-work.md\` | Per-task validator audit trail |
+| \`docs/specs/{slug}/state/tasks/task-{id}/retry-state.json\` | Retry budget and retry bookkeeping |
+| \`docs/specs/{slug}/state/tasks/task-{id}/runtime.json\` | Runtime metadata for watchdog/orchestration |
+| \`docs/specs/{slug}/state/sessions/{sessionID}-runtime.json\` | Session runtime ownership metadata |
+| \`docs/specs/{slug}/state/integration-state.json\` | Canonical feature integration manifest |
 
 ## Conventions
 
-- Specs: \`docs/specs/{feature-slug}/spec.md\` + \`CONTEXT.md\` + \`plan.md\`
+- Specs: \`docs/specs/{feature-slug}/spec.md\` + \`CONTEXT.md\` + \`plan.md\` + \`state/**\`
 - Domain docs: \`docs/domain/{domain}/*.md\` — indexed in \`docs/domain/INDEX.md\`
 - Principles: \`docs/principles/{topic}.md\` — registered in \`docs/principles/manifest\`
 - Sync markers: \`<!-- juninho:sync source=... hash=... -->\` to track doc↔code alignment
-- Worktrees: \`worktrees/{feature}-{task}/\` — created by implementer, removed by UNIFY
-- Hierarchical \`AGENTS.md\`: root + \`src/\` + \`src/{module}/\` — generated by \`/j.init-deep\`
+- Worktrees: \`worktrees/{feature}-{task}/\` — created by implementer, cleaned up from \`integration-state.json\`
+- Hierarchical \`AGENTS.md\`: root + \`src/\` + \`src/{module}/\` — generated by \`/j.finish-setup\`
 `
 }
 
@@ -400,7 +412,7 @@ Serves two purposes:
 1. **CARL lookup table** — \`j.carl-inject.ts\` reads \`Keywords:\` lines to match prompt words and inject the listed \`Files:\`
 2. **Planner orientation** — \`@j.planner\` reads this before interviewing to know what domain knowledge exists
 
-Run \`/j.init-deep\` to auto-populate from the codebase.
+Run \`/j.finish-setup\` to auto-populate from the codebase.
 Update manually as you document business domains.
 
 ---
@@ -421,7 +433,7 @@ Files:
 
 ## (no domains yet)
 
-Run \`/j.init-deep\` to scan the codebase and generate initial domain entries.
+Run \`/j.finish-setup\` to scan the codebase and generate initial domain entries.
 
 Add entries manually as you document business rules:
 
@@ -453,7 +465,7 @@ const MANIFEST = `# Principles Manifest
 #
 # When a prompt word matches any keyword in _RECALL, the corresponding _FILE
 # is injected into the agent's context before it processes the prompt.
-# Add entries as /j.init-deep discovers patterns, or manually as you codify decisions.
+# Add entries as /j.finish-setup discovers patterns, or manually as you codify decisions.
 
 AUTH_STATE=active
 AUTH_RECALL=auth, authentication, login, logout, session, token, jwt, oauth, clerk, middleware

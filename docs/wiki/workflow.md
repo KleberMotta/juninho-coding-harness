@@ -312,7 +312,7 @@ note right: documenta estado completo\nem execution-state.md
 == Sessão 2 ==
 Dev -> Dev: /j.start-work
 note right
-  j.plan-autoload detecta .plan-ready
+  j.plan-autoload detecta active-plan.json
   Injeta plano no contexto
 end note
 Dev -> Dev: /j.implement
@@ -405,13 +405,14 @@ U -> U: gh pr create
 Se o projeto já tem código e você quer que o CARL e os agentes entendam o domínio:
 
 ```
-/j.init-deep
+/j.finish-setup
 ```
 
 Isso escaneia o codebase e preenche:
 - `docs/domain/INDEX.md` — mapa de entidades, serviços, rotas
 - `docs/principles/manifest` — padrões canônicos encontrados
 - `AGENTS.md` hierárquico por diretório
+- `.opencode/skill-map.json` e skills dinâmicas do projeto
 
 Deve ser feito uma vez após o `juninho setup`, e repetido após refactors grandes.
 
@@ -523,10 +524,10 @@ O `@j.validator` lê `implementer-work.md` antes de validar. Se o implementer do
 
 ### "O agente não está lendo o plano"
 
-Verifique se `.opencode/state/.plan-ready` existe:
+Verifique se `.opencode/state/active-plan.json` existe:
 ```bash
-cat .opencode/state/.plan-ready
-# deve conter o path para plan.md
+cat .opencode/state/active-plan.json
+# deve conter slug, planPath e specPath
 ```
 
 Se não existir, o `@planner` não concluiu ou o arquivo foi deletado. Rode `/j.plan` novamente.

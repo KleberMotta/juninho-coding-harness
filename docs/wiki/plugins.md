@@ -58,9 +58,9 @@ Detecta a extensão do arquivo modificado e roda o formatter adequado:
 Injeta o plano ativo no contexto da sessão. Fire-once: dispara apenas no primeiro Read.
 
 **Fluxo:**
-1. `@planner` termina e escreve o path do `plan.md` em `.plan-ready`
-2. No primeiro Read da sessão, o plugin lê `.plan-ready`, carrega o plano e appenda a `output.output`
-3. Deleta `.plan-ready` (fire-once) para não re-injetar
+1. `@planner` termina e escreve `slug`, `planPath` e `specPath` em `.opencode/state/active-plan.json`
+2. No primeiro Read da sessão, o plugin lê `active-plan.json`, carrega o plano e appenda a `output.output`
+3. Mantém `active-plan.json` em disco para retomada e compaction consistentes
 4. Durante compaction (`experimental.session.compacting`), re-injeta via `output.context.push` para sobreviver resets
 
 **Resultado:** o agente recebe o plano ativo imediatamente e nunca o perde em compactions.
@@ -126,7 +126,7 @@ Mapeia o path do arquivo para uma skill e injeta instruções contextualmente:
 Scope-guard: depois de qualquer Write/Edit, verifica se o arquivo modificado está no plano ativo.
 
 **Fluxo:**
-1. No primeiro Write/Edit, carrega lazy os arquivos mencionados em `plan.md` / `plan-ready.md`
+1. No primeiro Write/Edit, carrega lazy os arquivos mencionados no plano apontado por `active-plan.json`
 2. Para cada Write/Edit subsequente, compara o path do arquivo com os paths do plano
 3. Se o arquivo não está no plano, appenda warning a `output.output`
 

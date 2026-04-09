@@ -10,7 +10,10 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
-    "validate": "tsx scripts/validate.ts"
+    "validate": "tsx scripts/validate.ts",
+    "eval:benchmark": "node eval/runners/run-benchmark.js . eval/benchmarks/benchmark-v0.json",
+    "eval:loop": "sh eval/runners/run-loop.sh",
+    "eval:prepare-autoresearch": "node eval/runners/prepare-autoresearch-run.js . ../autoresearch"
   },
   "files": [
     "dist"

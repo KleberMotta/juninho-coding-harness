@@ -375,7 +375,7 @@ build
               se REJECT: revisa plan.md e chama plan-reviewer novamente
               loop até OKAY
               question() ─→ apresenta plan ao dev para aprovação explícita
-              só escreve .plan-ready após dev aprovar
+              só escreve active-plan.json após dev aprovar
 ```
 
 **Por que um agente em vez de três chamados sequencialmente pelo `build`?** Porque o estado flui naturalmente dentro de um único agente. A fase de análise descobre padrões e produz diretivas; a fase de interview usa essas diretivas para fazer perguntas targeted; a fase de revisão acessa o plan.md recém-escrito. Se fossem três agentes separados coordenados pelo `build`, o `build` teria que serializar o output de cada fase e repassar como input para a próxima — frágil e verboso. O `planner` gerencia esse estado internamente.
@@ -462,10 +462,10 @@ build
 **O que apresenta:** goal, total de tasks, waves, arquivos-chave, riscos.
 
 **Possíveis respostas:**
-- **Sim** → escreve `.plan-ready` e reporta ao dev
+- **Sim** → escreve `active-plan.json` e reporta ao dev
 - **Não / mudanças** → aplica ajustes → re-roda plan-reviewer → pede aprovação novamente
 
-> **NUNCA escreve `.plan-ready` sem aprovação do desenvolvedor.** O plan-reviewer é um gate de qualidade automatizado. A aprovação do dev é a decisão real de go/no-go.
+> **NUNCA escreve `active-plan.json` sem aprovação do desenvolvedor.** O plan-reviewer é um gate de qualidade automatizado. A aprovação do dev é a decisão real de go/no-go.
 
 **Prompt de referência:** [`src/agents/momus.ts`](https://github.com/code-yeongyu/oh-my-opencode/blob/dev/src/agents/momus.ts) — incluindo o princípio de approval bias e o anti-pattern de listar mais de 3 issues.
 
@@ -819,9 +819,9 @@ Implementer's scratchpad and decision log. Contains: current task ID, wave numbe
 - **Validator** — before validating code. Understanding the implementer's deliberate decisions prevents false BLOCKs on intentional trade-offs. If the implementer documented "used X instead of Y because of Z", the validator evaluates the rationale rather than blindly flagging the deviation.
 - **UNIFY** (step 1) — to reconcile what was planned vs. what was actually done. Deviations logged here feed into the decision log persisted to `persistent-context.md`.
 
-### .plan-ready (IPC flag)
+### active-plan.json (session routing pointer)
 
-Transient flag written by the planner, consumed by `plan-autoload.ts` on `session.idle`. Contains plan path. Plugin reads, deletes flag, loads plan into new session.
+Session-level pointer written by the planner under `.opencode/state/active-plan.json`, consumed by `plan-autoload.ts` and write-time guards. Stores `slug`, `planPath`, and `specPath` so the active feature can be resumed without scanning `docs/specs/*` heuristically.
 
 ### State File Interaction Matrix
 
@@ -831,7 +831,7 @@ Transient flag written by the planner, consumed by `plan-autoload.ts` on `sessio
 | `execution-state.md` | — | **R/W** (steps 1, 5) | — | **R/W** (steps 1, 3) | — |
 | `validator-work.md` | — | **R** (step 1) | **W** (after validation) | **R** (step 1) | — |
 | `implementer-work.md` | — | **W** (step 5) | **R** (before validation) | **R** (step 1) | — |
-| `.plan-ready` | **W** | — | — | — | — |
+| `active-plan.json` | **W** | — | — | — | — |
 
 ---
 
@@ -907,7 +907,7 @@ Auto-formats files after every Write/Edit. Eliminates formatting-related validat
 
 ### plan-autoload.ts
 **Hooks:** `tool.execute.after` (first Read, fire-once) + `experimental.session.compacting`
-Detects `.plan-ready` IPC flag. On the first Read of a session, loads the plan and appends it to the Read output. Deletes `.plan-ready` after injection (fire-once). During compaction, re-injects plan via `output.context.push` for survival.
+Detects `.opencode/state/active-plan.json`. On the first Read of a session, loads the plan and appends it to the Read output. Keeps the pointer on disk so later sessions and compaction resolve the same active plan consistently.
 
 ### carl-inject.ts
 **Hooks:** `tool.execute.after` (Read) + `experimental.session.compacting`
@@ -921,7 +921,7 @@ Injects skill instructions contextually based on file path pattern:
 
 ### intent-gate.ts
 **Hook:** `tool.execute.after` (Write/Edit only)
-Scope-guard. After any file modification, checks if the modified file is referenced in the current plan (`plan.md` / `plan-ready.md`). If the file is not in scope, appends a warning to the tool output alerting the agent about potential scope creep.
+Scope-guard. After any file modification, checks if the modified file is referenced in the current plan resolved from `active-plan.json` or `execution-state.md`. If the file is not in scope, appends a warning to the tool output alerting the agent about potential scope creep.
 
 Example: agent writes `src/utils/random.ts` but the plan only mentions `src/components/`. The plugin appends: `[intent-gate] ⚠ SCOPE WARNING: "src/utils/random.ts" is not referenced in the current plan.`
 
@@ -1096,7 +1096,7 @@ Agents drift. Given a plan with defined scope, an agent may modify files outside
 `intent-gate.ts` runs on `tool.execute.after` for Write/Edit operations. It acts as a post-write scope guard.
 
 **Process:**
-1. On the first Write/Edit, lazy-load the set of files referenced in `plan.md` / `plan-ready.md`
+1. On the first Write/Edit, lazy-load the set of files referenced in the plan pointed to by `active-plan.json`
 2. After every Write/Edit, check if the modified file matches any file in the plan
 3. If the file is NOT in the plan, append a scope-creep warning to the tool output
 
@@ -1334,7 +1334,7 @@ gh pr create \
 1. PLANNING (lightweight, same three-agent pipeline)
    Developer: /plan "add rate limiting to withdrawal endpoint"
    Metis → Planner → Plan Reviewer → Developer Approval
-   plan.md written → developer approves → .plan-ready flag created
+   plan.md written → developer approves → active-plan.json created
 
 2. AUTO-LOAD
    plan-autoload.ts detects flag
@@ -1428,7 +1428,7 @@ gh pr create \
 | `.opencode/state/persistent-context.md` | State | `.opencode/` | Cross-session memory |
 | `.opencode/state/execution-state.md` | State | `.opencode/` | Per-feature shared task state |
 | `.opencode/state/{agent}-work.md` | State | `.opencode/` | Per-agent scratch + audit trail |
-| `.opencode/state/.plan-ready` | State | `.opencode/` | Transient IPC flag |
+| `.opencode/state/active-plan.json` | State | `.opencode/state/` | Session routing pointer |
 | `.git/hooks/pre-commit` | Hook | `.git/` | Deterministic outer validation loop |
 | `worktrees/{feature}-{task}/` | Runtime | project root | Isolated parallel execution environments |
 

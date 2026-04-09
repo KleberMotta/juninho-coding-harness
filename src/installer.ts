@@ -103,52 +103,60 @@ async function interactiveModelSelection(
   console.log("")
 
   const config: JuninhoConfig = {
-    strong: DEFAULT_MODELS.strong,
-    medium: DEFAULT_MODELS.medium,
-    weak: DEFAULT_MODELS.weak,
+    strong: existing?.strong ?? DEFAULT_MODELS.strong,
+    medium: existing?.medium ?? DEFAULT_MODELS.medium,
+    weak: existing?.weak ?? DEFAULT_MODELS.weak,
   }
 
   for (const tier of ["strong", "medium", "weak"] as ModelTier[]) {
     const tierModels = grouped[tier]
     const defaultBest = best[tier]
     const currentValue = existing?.[tier]
+    const fallbackOptions = [...grouped.strong, ...grouped.medium, ...grouped.weak, ...grouped.unknown]
+    const candidateOptions = Array.from(new Set([
+      ...tierModels,
+      ...(tierModels.length === 0 ? fallbackOptions : []),
+      currentValue,
+      defaultBest,
+      config[tier],
+    ].filter((value): value is string => Boolean(value))))
+    const defaultValue = currentValue ?? defaultBest ?? config[tier]
 
     console.log(`─── ${TIER_LABELS[tier]} ───`)
     console.log(`  Usado por: ${TIER_AGENTS[tier].join(", ")}`)
     console.log(`  Ideal: ${TIER_KNOWN_DEFAULTS[tier]}`)
 
-    if (tierModels.length === 0) {
-      console.log("  ⚠ Nenhum modelo deste tier detectado.")
-      const fallbackOptions = [...grouped.strong, ...grouped.medium, ...grouped.weak, ...grouped.unknown]
-        .filter((m) => m !== config.strong && m !== config.medium && m !== config.weak)
-
-      if (fallbackOptions.length > 0 || defaultBest) {
-        const allOptions = defaultBest ? [defaultBest, ...fallbackOptions.filter(m => m !== defaultBest)] : fallbackOptions
-        console.log("  Modelos disponíveis de outros tiers:")
-        allOptions.forEach((m, i) => {
-          const marker = (currentValue === m || (!currentValue && m === defaultBest)) ? " ← recomendado" : ""
-          console.log(`    ${i + 1}) ${m}${marker}`)
-        })
-        const response = await ask(rl, `  Escolha (1-${allOptions.length}) ou Enter para '${defaultBest ?? DEFAULT_MODELS[tier]}': `)
-        const idx = parseInt(response, 10)
-        config[tier] = (idx >= 1 && idx <= allOptions.length) ? allOptions[idx - 1] : (defaultBest ?? DEFAULT_MODELS[tier])
-      } else {
-        const manual = await ask(rl, `  Digite o model ID ou Enter para padrão (${DEFAULT_MODELS[tier]}): `)
-        config[tier] = manual || DEFAULT_MODELS[tier]
-      }
-    } else if (tierModels.length === 1) {
-      const model = tierModels[0]
-      const response = await ask(rl, `  Modelo detectado: ${model}. Usar? (S/n): `)
-      config[tier] = (response.toLowerCase() === "n") ? (await ask(rl, `  Digite o model ID: `)) || model : model
+    if (candidateOptions.length === 0) {
+      console.log("  ⚠ Nenhum modelo detectado para seleção.")
+      const manual = await ask(rl, `  Digite o model ID ou Enter para padrão (${DEFAULT_MODELS[tier]}): `)
+      config[tier] = manual || DEFAULT_MODELS[tier]
     } else {
-      tierModels.forEach((m, i) => {
-        const marker = (m === defaultBest) ? " ← recomendado" : ""
-        console.log(`    ${i + 1}) ${m}${marker}`)
+      if (tierModels.length === 0) {
+        console.log("  ⚠ Nenhum modelo deste tier detectado. Escolha explícita obrigatória entre os fallbacks abaixo.")
+      } else {
+        console.log("  Escolha explícita obrigatória para este tier:")
+      }
+
+      candidateOptions.forEach((model, index) => {
+        const markers: string[] = []
+        if (model === currentValue) markers.push("atual")
+        if (model === defaultBest) markers.push("recomendado")
+        if (!tierModels.includes(model)) markers.push("fallback")
+        const suffix = markers.length > 0 ? ` ← ${markers.join(", ")}` : ""
+        console.log(`    ${index + 1}) ${model}${suffix}`)
       })
-      const defaultIdx = defaultBest ? tierModels.indexOf(defaultBest) + 1 : 1
-      const response = await ask(rl, `  Escolha (1-${tierModels.length}) ou Enter para ${defaultIdx}: `)
+
+      const defaultIdx = Math.max(1, candidateOptions.indexOf(defaultValue) + 1)
+      const response = await ask(rl, `  Escolha (1-${candidateOptions.length}), digite um model ID, ou Enter para ${defaultIdx}: `)
       const idx = parseInt(response, 10)
-      config[tier] = (idx >= 1 && idx <= tierModels.length) ? tierModels[idx - 1] : (tierModels[defaultIdx - 1] ?? tierModels[0])
+
+      if (Number.isInteger(idx) && idx >= 1 && idx <= candidateOptions.length) {
+        config[tier] = candidateOptions[idx - 1]
+      } else if (response) {
+        config[tier] = response
+      } else {
+        config[tier] = candidateOptions[defaultIdx - 1] ?? DEFAULT_MODELS[tier]
+      }
     }
 
     console.log(`  ✓ ${TIER_LABELS[tier]}: ${config[tier]}`)
@@ -189,6 +197,11 @@ async function resolveModelsForSetup(
   rl: ReturnType<typeof createInterface>,
 ): Promise<JuninhoConfig> {
   const saved = loadConfig(projectDir)
+
+  if (process.stdin.isTTY) {
+    return interactiveModelSelection(rl, saved)
+  }
+
   if (saved) return saved
 
   const available = discoverAvailableModels()
@@ -199,11 +212,7 @@ async function resolveModelsForSetup(
     }
   }
 
-  if (!process.stdin.isTTY) {
-    return { strong: DEFAULT_MODELS.strong, medium: DEFAULT_MODELS.medium, weak: DEFAULT_MODELS.weak }
-  }
-
-  return interactiveModelSelection(rl, null)
+  return { strong: DEFAULT_MODELS.strong, medium: DEFAULT_MODELS.medium, weak: DEFAULT_MODELS.weak }
 }
 
 /* ─── Resolve project type ─── */
@@ -415,7 +424,7 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
 
     // Step 8: Write commands
     writeCommands(projectDir)
-    console.log("[juninho] ✓ Commands created (15)")
+    console.log("[juninho] ✓ Commands created (14)")
 
     // Step 9: Write state files
     writeState(projectDir)
@@ -521,9 +530,11 @@ function createDirectories(projectDir: string, skills: string[]): void {
     ".opencode/scripts",
     ".opencode/commands",
     ".opencode/state",
+    ".opencode/templates",
     "docs",
     "docs/principles",
     "docs/domain",
+    "docs/reports",
     "docs/specs",
     "worktrees",
   ]

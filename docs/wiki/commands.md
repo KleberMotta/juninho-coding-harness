@@ -25,7 +25,7 @@ Transforma um objetivo em um `plan.md` executável.
 **Output:**
 - `plan.md` com tasks em XML, dependências, acceptance criteria
 - `CONTEXT.md` com objetivo, constraints e anti-patterns
-- `.opencode/state/.plan-ready` marcando o plano como ativo
+- `.opencode/state/active-plan.json` marcando o plano como ativo
 
 ---
 
@@ -92,7 +92,7 @@ Atualiza `AGENTS.md`, docs de domínio e docs de princípios com base nos arquiv
 ```
 
 **O que faz:**
-1. Lê `.opencode/state/workflow-config.md`
+1. Lê `.opencode/juninho-config.json`
 2. Escolhe onde cada conhecimento deve ficar:
    - `AGENTS.md` para regras locais de trabalho
    - `docs/domain/*` para comportamento de negócio
@@ -102,26 +102,29 @@ Atualiza `AGENTS.md`, docs de domínio e docs de princípios com base nos arquiv
 
 ---
 
-## /j.init-deep
+## /j.finish-setup
 
-**Invoca:** exploração profunda do codebase
+**Invoca:** `@j.explore` + bootstrap de conhecimento do repositório
 
-Escaneia todo o codebase e gera documentação de domínio.
+É o bootstrap canônico do repositório após instalar o harness. Escaneia todo o codebase, gera `AGENTS.md` hierárquicos, skills dinâmicas e documentação de domínio/princípios.
 
 ```
-/j.init-deep
+/j.finish-setup
 ```
 
-**Popula:**
+**Popula e atualiza:**
+- `AGENTS.md` na raiz e em diretórios relevantes
 - `docs/domain/INDEX.md` — mapa de entidades, serviços, rotas, componentes
 - `docs/principles/manifest` — padrões canônicos encontrados
+- `.opencode/skill-map.json` — mapeamento de skills dinâmicas
+- `.opencode/skills/j.*-writing/SKILL.md` — skills específicas do projeto
 
 **Quando usar:**
 - Logo após `juninho setup` em um projeto existente
 - Após refactors grandes que mudaram a estrutura
 - Quando os agentes parecem não conhecer o domínio
 
-**Resultado:** o CARL plugin passa a injetar contexto relevante automaticamente.
+**Resultado:** o CARL plugin e os injetores de AGENTS/skills passam a operar com contexto real do projeto.
 
 ---
 
@@ -331,7 +334,7 @@ Fecha o loop após implementação: reconcilia worktrees, documenta e cria o PR.
 2. Atualiza `docs/domain/INDEX.md` com novas entidades/padrões
 3. Merge de worktrees paralelas (se usadas no `/j.ulw-loop`)
 4. Cria PR via `gh pr create` com body gerado da spec
-5. Limpa estado: remove `.plan-ready`, arquiva `plan.md`, reseta `execution-state.md`
+5. Limpa estado: remove `active-plan.json`, arquiva `plan.md`, reseta `execution-state.md`
 
 **Diferença em relação ao `/j.handoff`:** `/j.handoff` documenta o estado para a próxima sessão; `/j.unify` finaliza a feature e cria o PR.
 
@@ -344,7 +347,7 @@ Fecha o loop após implementação: reconcilia worktrees, documenta e cria o PR.
 | `/j.plan` | @j.planner | Qualquer task não trivial |
 | `/j.spec` | @j.spec-writer | Features complexas com requisitos ambíguos |
 | `/j.implement` | @j.implementer | Após ter um plano |
-| `/j.init-deep` | (exploração) | Setup inicial ou pós-refactor |
+| `/j.finish-setup` | @j.explore | Bootstrap inicial ou pós-refactor |
 | `/j.start-work` | — | Início de sessão focada |
 | `/j.handoff` | — | Fim de sessão longa |
 | `/j.ulw-loop` | @j.implementer × N | Múltiplas tasks independentes |

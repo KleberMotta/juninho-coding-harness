@@ -45,7 +45,7 @@ O agente estratégico central. Transforma objetivos vagos em planos executáveis
 **Fase 3 — Momus (Loop de revisão)**
 - Spawna `@j.plan-reviewer`
 - Itera até aprovação (OKAY)
-- Marca `.opencode/state/.plan-ready` para o plugin `j.plan-autoload`
+- Marca `.opencode/state/active-plan.json` para o plugin `j.plan-autoload`
 
 ### Output
 - `plan.md` — tarefas em XML com dependências e critérios de aceitação
@@ -182,11 +182,11 @@ Sempre inclui notas positivas. Veredicto: `LGTM | LGTM_WITH_NOTES | NEEDS_WORK`.
 
 **Modelo:** claude-sonnet-4-6 | **Modo:** subagent
 
-Fecha o loop após implementação: reconcilia, documenta e faz o ship conforme `.opencode/state/workflow-config.md`.
+Fecha o loop após implementação: reconcilia, documenta e faz o ship conforme `.opencode/juninho-config.json`.
 
 ### Protocolo
 
-1. **Lê `workflow-config.md`** — decide quais passos estão habilitados
+1. **Lê `juninho-config.json`** — decide quais passos estão habilitados
 2. **Verifica completude** — checa cada task do `plan.md` (DONE/PARTIAL/SKIPPED)
 3. **Atualiza docs e estado** — apenas quando esses passos estiverem habilitados
 4. **Merge de worktrees** — se execução paralela foi usada e merge estiver habilitado

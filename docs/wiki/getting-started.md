@@ -92,12 +92,12 @@ Após o setup, seu projeto terá:
 ├── tools/           ← lsp, ast-grep, find-pattern, next-version
 ├── scripts/         ← pre-commit, lint estrutural, testes relacionados, check amplo
 ├── commands/        ← /j.plan, /j.spec, /j.implement, /j.handoff, etc.
-└── state/           ← contexto persistente entre sessões + workflow-config
+└── state/           ← contexto persistente entre sessões
 
 AGENTS.md            ← referência rápida de todos os agentes e comandos
 opencode.json        ← patchado com definições dos agentes + MCP Context7
 docs/
-├── domain/INDEX.md  ← índice de domínio (populado por /j.init-deep)
+├── domain/INDEX.md  ← índice de domínio (populado por /j.finish-setup)
 ├── principles/      ← manifest + docs-base para o CARL
 └── specs/           ← specs geradas por /j.spec
 worktrees/           ← para paralelização com git worktrees

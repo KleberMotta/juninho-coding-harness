@@ -33,7 +33,7 @@ Depois disso, o OpenCode no seu projeto terá:
 - **12 plugins** que rodam automaticamente como hooks (j.env-protection, j.auto-format, j.carl-inject, j.skill-inject, j.memory, j.hashline-read/edit, j.directory-agents-injector, ...)
 - **9 skills** que injetam instruções por tipo de arquivo (tests, pages, API routes, actions, migrations, docs e scripts)
 - **4 ferramentas** (lsp, ast-grep, find-pattern, next-version)
-- **14 slash commands** (/j.plan, /j.spec, /j.implement, /j.sync-docs, /j.init-deep, /j.start-work, /j.handoff, /j.ulw-loop, /j.check, /j.lint, /j.test, /j.pr-review, /j.status, /j.unify)
+- **14 slash commands** (/j.plan, /j.spec, /j.implement, /j.sync-docs, /j.finish-setup, /j.start-work, /j.handoff, /j.ulw-loop, /j.check, /j.lint, /j.test, /j.pr-review, /j.status, /j.unify)
 
 ---
 
@@ -58,7 +58,7 @@ Para features complexas:
 ## Conceitos-chave
 
 **CARL (Context-Aware Retrieval Layer)**
-O plugin `j.carl-inject` analisa o conteúdo dos arquivos lidos, o path e o contexto de task antes de injetar docs relevantes do `docs/principles/manifest` e `docs/domain/INDEX.md`. Rode `/j.init-deep` uma vez para popular esses arquivos e use `/j.sync-docs` para mantê-los alinhados ao código.
+O plugin `j.carl-inject` analisa o conteúdo dos arquivos lidos, o path e o contexto de task antes de injetar docs relevantes do `docs/principles/manifest` e `docs/domain/INDEX.md`. Rode `/j.finish-setup` uma vez para popular esses arquivos e use `/j.sync-docs` para mantê-los alinhados ao código.
 
 **Hashlines**
 Sistema de referência estável a linhas de código: `NNN#XX:` onde `XX` é um hash da linha. Permite edits precisos sem ambiguidade, mesmo em arquivos grandes. O plugin `j.hashline-read` adiciona os prefixos; `j.hashline-edit` valida que referências não estão stale.
