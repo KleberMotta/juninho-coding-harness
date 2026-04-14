@@ -110,15 +110,12 @@ async function interactiveModelSelection(
   }
 
   for (const tier of ["strong", "medium", "weak"] as ModelTier[]) {
-    const tierModels = grouped[tier]
     const defaultBest = best[tier]
     const currentValue = existing?.[tier]
-    const fallbackOptions = [...grouped.strong, ...grouped.medium, ...grouped.weak, ...grouped.unknown]
-    const candidateOptions = Array.from(new Set([
-      ...tierModels,
-      ...(tierModels.length === 0 ? fallbackOptions : []),
+    // Show ALL available models — don't restrict by tier classification
+    const allModels = Array.from(new Set([
+      ...available,
       currentValue,
-      defaultBest,
       config[tier],
     ].filter((value): value is string => Boolean(value))))
     const defaultValue = currentValue ?? defaultBest ?? config[tier]
@@ -127,36 +124,37 @@ async function interactiveModelSelection(
     console.log(`  Usado por: ${TIER_AGENTS[tier].join(", ")}`)
     console.log(`  Ideal: ${TIER_KNOWN_DEFAULTS[tier]}`)
 
-    if (candidateOptions.length === 0) {
+    if (allModels.length === 0) {
       console.log("  ⚠ Nenhum modelo detectado para seleção.")
       const manual = await ask(rl, `  Digite o model ID ou Enter para padrão (${DEFAULT_MODELS[tier]}): `)
       config[tier] = manual || DEFAULT_MODELS[tier]
     } else {
-      if (tierModels.length === 0) {
-        console.log("  ⚠ Nenhum modelo deste tier detectado. Escolha explícita obrigatória entre os fallbacks abaixo.")
-      } else {
-        console.log("  Escolha explícita obrigatória para este tier:")
-      }
+      console.log("  Todos os modelos disponíveis:")
 
-      candidateOptions.forEach((model, index) => {
+      allModels.forEach((model, index) => {
         const markers: string[] = []
         if (model === currentValue) markers.push("atual")
         if (model === defaultBest) markers.push("recomendado")
-        if (!tierModels.includes(model)) markers.push("fallback")
+        // Show which tier this model naturally belongs to, as a hint
+        const naturalTier = grouped.strong.includes(model) ? "forte"
+          : grouped.medium.includes(model) ? "médio"
+          : grouped.weak.includes(model) ? "fraco"
+          : null
+        if (naturalTier && naturalTier !== TIER_LABELS[tier].split(" ")[0].toLowerCase()) markers.push(naturalTier)
         const suffix = markers.length > 0 ? ` ← ${markers.join(", ")}` : ""
         console.log(`    ${index + 1}) ${model}${suffix}`)
       })
 
-      const defaultIdx = Math.max(1, candidateOptions.indexOf(defaultValue) + 1)
-      const response = await ask(rl, `  Escolha (1-${candidateOptions.length}), digite um model ID, ou Enter para ${defaultIdx}: `)
+      const defaultIdx = Math.max(1, allModels.indexOf(defaultValue) + 1)
+      const response = await ask(rl, `  Escolha (1-${allModels.length}), digite um model ID, ou Enter para ${defaultIdx}: `)
       const idx = parseInt(response, 10)
 
-      if (Number.isInteger(idx) && idx >= 1 && idx <= candidateOptions.length) {
-        config[tier] = candidateOptions[idx - 1]
+      if (Number.isInteger(idx) && idx >= 1 && idx <= allModels.length) {
+        config[tier] = allModels[idx - 1]
       } else if (response) {
         config[tier] = response
       } else {
-        config[tier] = candidateOptions[defaultIdx - 1] ?? DEFAULT_MODELS[tier]
+        config[tier] = allModels[defaultIdx - 1] ?? DEFAULT_MODELS[tier]
       }
     }
 
