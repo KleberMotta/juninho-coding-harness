@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync } from "fs"
+import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, readdirSync } from "fs"
 import { createInterface } from "readline"
 import { execSync } from "child_process"
 import path from "path"
+import { writeLib } from "./templates/lib.js"
 import { writeAgents } from "./templates/agents.js"
 import { writeSkills } from "./templates/skills.js"
 import { writePlugins } from "./templates/plugins.js"
@@ -58,7 +59,7 @@ const TIER_LABELS: Record<ModelTier, string> = {
 
 const TIER_AGENTS: Record<ModelTier, string[]> = {
   strong: ["j.planner", "j.spec-writer"],
-  medium: ["j.plan-reviewer", "j.implementer", "j.validator", "j.reviewer", "j.unify"],
+  medium: ["j.plan-reviewer", "j.implementer", "j.validator", "j.reviewer", "j.unify", "j.checker"],
   weak: ["j.explore", "j.librarian"],
 }
 
@@ -353,6 +354,64 @@ async function handleLintDetection(
   return undefined
 }
 
+/* ─── Workspace detection ─── */
+
+function isWorkspaceRoot(dir: string): boolean {
+  // A workspace root contains multiple project repos (directories with .git)
+  // but may not have a .git itself
+  let gitCount = 0
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue
+      // Check 2 levels deep for .git dirs
+      const child = path.join(dir, entry.name)
+      if (existsSync(path.join(child, ".git"))) {
+        gitCount++
+        if (gitCount >= 2) return true
+        continue
+      }
+      // Check one level deeper (e.g., ~/repos/org/project)
+      try {
+        const grandchildren = readdirSync(child, { withFileTypes: true })
+        for (const gc of grandchildren) {
+          if (!gc.isDirectory() || gc.name.startsWith(".")) continue
+          if (existsSync(path.join(child, gc.name, ".git"))) {
+            gitCount++
+            if (gitCount >= 2) return true
+          }
+        }
+      } catch { /* skip unreadable */ }
+    }
+  } catch { /* skip */ }
+  return false
+}
+
+function discoverProjects(dir: string): string[] {
+  const projects: string[] = []
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue
+      const child = path.join(dir, entry.name)
+      if (existsSync(path.join(child, ".git"))) {
+        projects.push(child)
+        continue
+      }
+      try {
+        const grandchildren = readdirSync(child, { withFileTypes: true })
+        for (const gc of grandchildren) {
+          if (!gc.isDirectory() || gc.name.startsWith(".")) continue
+          if (existsSync(path.join(child, gc.name, ".git"))) {
+            projects.push(path.join(child, gc.name))
+          }
+        }
+      } catch { /* skip */ }
+    }
+  } catch { /* skip */ }
+  return projects.sort()
+}
+
 /* ─── Main setup ─── */
 
 export async function runSetup(projectDir: string, options: SetupOptions = {}): Promise<void> {
@@ -362,6 +421,20 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
   if (isReinstall && !options.force) {
     console.log("[juninho] Framework already installed. Use --force to reinstall.")
     return
+  }
+
+  const isWorkspace = isWorkspaceRoot(projectDir)
+
+  if (isWorkspace) {
+    const projects = discoverProjects(projectDir)
+    console.log("[juninho] Workspace mode detected — installing harness at workspace root")
+    console.log(`[juninho] Target workspace: ${projectDir}`)
+    console.log(`[juninho] Discovered ${projects.length} project(s):`)
+    for (const p of projects) {
+      console.log(`[juninho]   - ${path.relative(projectDir, p)}`)
+    }
+  } else {
+    console.log("[juninho] Single-project mode")
   }
 
   console.log("[juninho] Installing Agentic Coding Framework...")
@@ -402,9 +475,13 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
     saveConfig(projectDir, fullConfig)
     console.log("[juninho] ✓ Config saved")
 
+    // Step 2.5: Write lib utilities
+    writeLib(projectDir)
+    console.log("[juninho] ✓ Lib utilities created (4)")
+
     // Step 3: Write agents
     writeAgents(projectDir, models, projectType, isKotlin, buildTool)
-    console.log("[juninho] ✓ Agents created (9)")
+    console.log("[juninho] ✓ Agents created (12)")
 
     // Step 4: Write skills (filtered by project type)
     writeSkills(projectDir, projectType, isKotlin)
@@ -447,25 +524,35 @@ export async function runSetup(projectDir: string, options: SetupOptions = {}): 
     console.log("")
     console.log("[juninho] ✓ Framework installed successfully!")
     console.log("[juninho] Open OpenCode — /j.plan, /j.spec and /j.implement are ready.")
-    console.log("[juninho] Agents: @j.planner, @j.spec-writer, @j.implementer, @j.validator, @j.reviewer, @j.unify, @j.explore, @j.librarian")
+    console.log("[juninho] Agents: @j.planner, @j.spec-writer, @j.implementer, @j.validator, @j.reviewer, @j.checker, @j.unify, @j.explore, @j.librarian")
 
     // Step 14: Offer /j.finish-setup
     if (process.stdin.isTTY) {
       console.log("")
-      const finishResponse = await ask(rl, "[juninho] Deseja executar /j.finish-setup agora para gerar skills e docs do projeto? (S/n): ")
-      if (finishResponse.toLowerCase() !== "n") {
-        console.log("[juninho] Executando /j.finish-setup via opencode...")
-        try {
-          execSync('opencode run "/j.finish-setup"', {
-            cwd: projectDir,
-            stdio: "inherit",
-            timeout: 600_000, // 10 minutes
-          })
-        } catch {
-          console.log("[juninho] ⚠ Falha ao executar /j.finish-setup. Execute manualmente no OpenCode.")
+      if (isWorkspace) {
+        const projects = discoverProjects(projectDir)
+        console.log("[juninho] Workspace mode: use /j.finish-setup <project> to bootstrap each project's docs.")
+        console.log("[juninho] Discovered projects:")
+        for (const p of projects) {
+          const rel = path.relative(projectDir, p)
+          console.log(`[juninho]   /j.finish-setup ${rel}`)
         }
       } else {
-        console.log("[juninho] Rode /j.finish-setup no OpenCode quando quiser gerar skills e documentação.")
+        const finishResponse = await ask(rl, "[juninho] Deseja executar /j.finish-setup agora para gerar skills e docs do projeto? (S/n): ")
+        if (finishResponse.toLowerCase() !== "n") {
+          console.log("[juninho] Executando /j.finish-setup via opencode...")
+          try {
+            execSync('opencode run "/j.finish-setup"', {
+              cwd: projectDir,
+              stdio: "inherit",
+              timeout: 600_000, // 10 minutes
+            })
+          } catch {
+            console.log("[juninho] ⚠ Falha ao executar /j.finish-setup. Execute manualmente no OpenCode.")
+          }
+        } else {
+          console.log("[juninho] Rode /j.finish-setup no OpenCode quando quiser gerar skills e documentação.")
+        }
       }
     } else {
       console.log("[juninho] Rode /j.finish-setup no OpenCode quando quiser gerar skills e documentação do projeto.")
@@ -522,6 +609,7 @@ function createDirectories(projectDir: string, skills: string[]): void {
   const dirs = [
     ".opencode",
     ".opencode/agents",
+    ".opencode/lib",
     ".opencode/skills",
     // Only create skill directories for the relevant project type
     ...skills.map((s) => `.opencode/skills/${s}`),

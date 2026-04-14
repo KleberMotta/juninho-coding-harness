@@ -1,16 +1,21 @@
-import { writeFileSync } from "fs"
+import { writeFileSync, mkdirSync, chmodSync } from "fs"
 import path from "path"
 
 export function writeState(projectDir: string): void {
   const opencodeDir = path.join(projectDir, ".opencode")
   const stateDir = path.join(opencodeDir, "state")
   const templatesDir = path.join(opencodeDir, "templates")
+  const hooksDir = path.join(opencodeDir, "hooks")
+
+  mkdirSync(hooksDir, { recursive: true })
 
   writeFileSync(path.join(stateDir, "persistent-context.md"), PERSISTENT_CONTEXT)
   writeFileSync(path.join(stateDir, "execution-state.md"), EXECUTION_STATE)
   writeFileSync(path.join(stateDir, "README.md"), STATE_README)
   writeFileSync(path.join(opencodeDir, ".gitignore"), OPENCODE_GITIGNORE)
   writeFileSync(path.join(templatesDir, "spec-state-readme.md"), SPEC_STATE_README_TEMPLATE)
+  writeFileSync(path.join(hooksDir, "pre-commit"), HOOKS_PRE_COMMIT)
+  try { chmodSync(path.join(hooksDir, "pre-commit"), 0o755) } catch { /* skip */ }
 }
 
 const PERSISTENT_CONTEXT = `# Persistent Context
@@ -162,4 +167,19 @@ These files are operational metadata only.
 - Session runtime files must live under \`sessions/\`.
 - \`integration-state.json\` and \`implementer-work.md\` stay at the root of this feature state directory.
 - \`check-review.md\` stays at the root of this feature state directory and is overwritten by the latest full-check pass.
+- When \`check-review.md\` identifies required changes after a task is already COMPLETE, create a new follow-up task instead of reopening the completed task.
+`
+
+const HOOKS_PRE_COMMIT = `#!/bin/sh
+set -e
+
+ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+SCRIPT_PATH="$ROOT_DIR/.opencode/scripts/pre-commit.sh"
+
+if [ ! -x "$SCRIPT_PATH" ]; then
+  echo "[juninho:pre-commit] Missing executable script: $SCRIPT_PATH" >&2
+  exit 1
+fi
+
+exec "$SCRIPT_PATH"
 `

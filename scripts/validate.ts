@@ -69,14 +69,18 @@ const readCmd = (n: string) => readFileSync(cmdPath(n), "utf-8")
 
 const AGENTS = [
   "j.planner", "j.plan", "j.plan-reviewer", "j.spec-writer", "j.spec", "j.implementer",
-  "j.validator", "j.reviewer", "j.unify", "j.explore", "j.librarian",
+  "j.validator", "j.reviewer", "j.checker", "j.unify", "j.explore", "j.librarian",
 ]
 
 const PLUGINS = [
-  "j.env-protection", "j.auto-format", "j.plan-autoload", "j.state-paths", "j.feature-state-paths",
-  "j.juninho-config", "j.task-runtime", "j.task-board", "j.notify", "j.carl-inject",
+  "j.env-protection", "j.auto-format", "j.plan-autoload",
+  "j.task-runtime", "j.task-board", "j.notify", "j.carl-inject",
   "j.skill-inject", "j.intent-gate", "j.todo-enforcer", "j.comment-checker",
   "j.hashline-read", "j.hashline-edit", "j.directory-agents-injector", "j.memory",
+]
+
+const LIB_FILES = [
+  "j.workspace-paths", "j.feature-state-paths", "j.state-paths", "j.juninho-config",
 ]
 
 const COMMANDS = [
@@ -272,13 +276,19 @@ const expectedSkills = EXPECTED_SKILLS_BY_PROJECT_TYPE[generatedProjectType] ?? 
 
 // ─── Group 1: Installation (12 tests) ────────────────────────────────────────
 
-test("Installation", "All 11 agent files exist", () => {
+test("Installation", "All 12 agent files exist", () => {
   const missing = AGENTS.filter((a) => !existsSync(agentPath(a)))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
-test("Installation", "All 17 plugins exist", () => {
+test("Installation", "All 15 plugins exist", () => {
   const missing = PLUGINS.filter((p) => !existsSync(pluginPath(p)))
+  return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
+})
+
+test("Installation", "All 4 lib utility files exist", () => {
+  const libDir = path.join(testDir, ".opencode", "lib")
+  const missing = LIB_FILES.filter((f) => !existsSync(path.join(libDir, f + ".ts")))
   return missing.length === 0 ? true : `Missing: ${missing.join(", ")}`
 })
 
@@ -697,8 +707,8 @@ test("Commands", "status.md references execution-state.md", () =>
 test("Commands", "finish-setup.md references AGENTS.md", () =>
   readCmd("j.finish-setup").includes("AGENTS.md"))
 
-test("Commands", "start-work.md references execution-state.md", () =>
-  readCmd("j.start-work").includes("execution-state.md"))
+test("Commands", "start-work.md references active-plan.json", () =>
+  readCmd("j.start-work").includes("active-plan.json"))
 
 test("Commands", "handoff.md references execution-state.md", () =>
   readCmd("j.handoff").includes("execution-state.md"))

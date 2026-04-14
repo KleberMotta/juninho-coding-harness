@@ -116,6 +116,16 @@ export function patchOpencodeJson(projectDir: string, models?: OpencodeModels): 
           question: "deny",
         },
       },
+      "j.checker": {
+        model: m.medium,
+        permission: {
+          bash: "allow",
+          write: "allow",
+          edit: "allow",
+          task: "allow",
+          question: "deny",
+        },
+      },
       "j.unify": {
         model: m.medium,
         permission: {
@@ -306,6 +316,9 @@ Can fix FIX-tier issues directly. Writes per-task audit trail to \`docs/specs/{s
 
 ### @j.reviewer
 Detailed read-only reviewer. Used via \`/j.pr-review\` and by \`/j.check\` to generate actionable follow-up findings.
+
+### @j.checker
+Full quality-gate orchestrator. Runs \`.opencode/scripts/check-all.sh\`, delegates multi-pass review to \`@j.reviewer\`, persists \`check-review.md\`, and returns reentry guidance for \`@j.implementer\`.
 
 ### @j.unify
 Closes the loop according to \`.opencode/juninho-config.json\` under \`workflow\`.

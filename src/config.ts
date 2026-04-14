@@ -34,6 +34,7 @@ export interface JuninhoConfig {
       preCommitScope?: string
       postImplementFullCheck?: boolean
       reenterImplementOnFullCheckFailure?: boolean
+      watchdogSessionStale?: boolean
     }
     unify?: {
       enabled?: boolean
@@ -64,6 +65,7 @@ export const DEFAULT_WORKFLOW_CONFIG: NonNullable<JuninhoConfig["workflow"]> = {
     preCommitScope: "related",
     postImplementFullCheck: true,
     reenterImplementOnFullCheckFailure: true,
+    watchdogSessionStale: true,
   },
   unify: {
     enabled: true,

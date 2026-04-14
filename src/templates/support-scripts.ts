@@ -17,6 +17,8 @@ export function writeSupportScripts(
   writeExecutable(path.join(scriptsDir, "check-all.sh"), checkAll(projectType, isKotlin, lintTool))
   writeExecutable(path.join(scriptsDir, "scaffold-spec-state.sh"), SCAFFOLD_SPEC_STATE)
   writeExecutable(path.join(scriptsDir, "harness-feature-integration.sh"), HARNESS_FEATURE_INTEGRATION)
+  writeExecutable(path.join(scriptsDir, "build-verify.sh"), buildVerify(projectType, isKotlin))
+  writeExecutable(path.join(scriptsDir, "install-git-hooks.sh"), INSTALL_GIT_HOOKS)
 }
 
 function writeExecutable(filePath: string, content: string): void {
@@ -1342,4 +1344,93 @@ NODE
     fail "Unknown command: \${cmd:-<empty>}"
     ;;
 esac
+`
+
+// ─── Build Verify ────────────────────────────────────────────────────────────
+
+function buildVerify(projectType: ProjectType, isKotlin: boolean): string {
+  if (projectType === "java") {
+    return `#!/bin/sh
+set -e
+
+ROOT_DIR="\${TARGET_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$ROOT_DIR"
+
+echo "[juninho:build-verify] Running build verification..."
+
+if [ -x "./gradlew" ]; then
+  ${isKotlin ? './gradlew compileKotlin compileTestKotlin' : './gradlew compileJava compileTestJava'}
+  exit 0
+fi
+
+if [ -x "./mvnw" ]; then
+  ./mvnw -q -DskipTests compile test-compile
+  exit 0
+fi
+
+echo "[juninho:build-verify] No build tool found."
+exit 1
+`
+  }
+
+  if (projectType === "go") {
+    return `#!/bin/sh
+set -e
+
+ROOT_DIR="\${TARGET_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$ROOT_DIR"
+
+echo "[juninho:build-verify] Running build verification..."
+go build ./...
+`
+  }
+
+  // Node/Python/Generic — lightweight build check
+  return `#!/bin/sh
+set -e
+
+ROOT_DIR="\${TARGET_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$ROOT_DIR"
+
+echo "[juninho:build-verify] Running build verification..."
+
+if [ -f "package.json" ]; then
+  if npm run --silent build --if-present 2>/dev/null; then
+    exit 0
+  fi
+  if npx tsc --noEmit 2>/dev/null; then
+    exit 0
+  fi
+fi
+
+echo "[juninho:build-verify] No build verification available — skipping."
+exit 0
+`
+}
+
+// ─── Install Git Hooks ───────────────────────────────────────────────────────
+
+const INSTALL_GIT_HOOKS = `#!/bin/sh
+set -e
+
+ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+HOOKS_DIR="$ROOT_DIR/.git/hooks"
+SOURCE_HOOK="$ROOT_DIR/.opencode/hooks/pre-commit"
+TARGET_HOOK="$HOOKS_DIR/pre-commit"
+
+if [ ! -d "$HOOKS_DIR" ]; then
+  echo "[juninho:install-hooks] Missing git hooks directory: $HOOKS_DIR" >&2
+  exit 1
+fi
+
+if [ ! -f "$SOURCE_HOOK" ]; then
+  echo "[juninho:install-hooks] Missing source hook: $SOURCE_HOOK" >&2
+  exit 1
+fi
+
+chmod +x "$SOURCE_HOOK"
+ln -sf ../../.opencode/hooks/pre-commit "$TARGET_HOOK"
+chmod +x "$TARGET_HOOK"
+
+echo "[juninho:install-hooks] Installed pre-commit hook at $TARGET_HOOK"
 `
